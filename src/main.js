@@ -4,6 +4,7 @@ import { saveHistory } from './core/history.js';
 import { drawStroke, getPos } from './tools/draw-stroke.js';
 import { commitAllSplatterParticles } from './tools/bubble-brush.js';
 import { finalizeVineStroke } from './tools/vine-brush.js';
+import { finalizeVineStrokeV2 } from './tools/vine-brush-v2.js';
 import { finalizeBoltStroke } from './tools/bolt-brush.js';
 import { finalizeFireStroke } from './tools/fire-brush.js';
 import { finalizeRectStroke, cancelRectStroke } from './tools/rect-tool.js';
@@ -45,6 +46,7 @@ state.canvas.addEventListener('mousedown', function(e) {
   var pos = getPos(e), x = pos[0], y = pos[1];
   saveHistory();
   state.mirrorVineStroke = null;
+  state.mirrorVineStrokeV2 = null;
   state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null; state.mirrorBoltCommits = [];
   state.mirrorPipeStroke = null;
   state.lastStrokePoints = [{x:x, y:y}];
@@ -53,7 +55,7 @@ state.canvas.addEventListener('mousedown', function(e) {
                          : state.tool === 'splatter' ? state.brushSize*5
                          : state.tool === 'fire' ? state.brushSize*7.5
                          : state.tool === 'bolt' ? state.brushSize*2.2
-                         : state.tool === 'vine' ? state.brushSize*1.6
+                         : (state.tool === 'vine' || state.tool === 'vine2') ? state.brushSize*1.6
                          : state.tool === 'pipe' ? state.brushSize*1.8
                          : state.tool === 'rect' ? 0
                          : state.tool === 'ellipse' ? 0
@@ -79,14 +81,14 @@ state.canvas.addEventListener('mousemove', function(e) {
 
 state.canvas.addEventListener('mouseup', function() {
   state.painting = false;
-  finalizeVineStroke(); finalizeBoltStroke(); finalizeFireStroke();
+  finalizeVineStroke(); finalizeVineStrokeV2(); finalizeBoltStroke(); finalizeFireStroke();
   finalizeRectStroke(); finalizeEllipseStroke(); finalizePipeStroke();
   clearBrushPreview();
 });
 
 state.canvas.addEventListener('mouseleave', function() {
   state.painting = false;
-  finalizeVineStroke(); finalizeBoltStroke(); finalizeFireStroke();
+  finalizeVineStroke(); finalizeVineStrokeV2(); finalizeBoltStroke(); finalizeFireStroke();
   cancelRectStroke(); cancelEllipseStroke(); finalizePipeStroke();
   clearBrushPreview();
 });

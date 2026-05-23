@@ -3,6 +3,7 @@ import { getBrushStamp, getEraserStamp, stampLine } from '../core/brush-pipeline
 import { drawSplatterStroke } from './bubble-brush.js';
 import { drawBoltStroke } from './bolt-brush.js';
 import { drawVineStroke } from './vine-brush.js';
+import { drawVineStrokeV2 } from './vine-brush-v2.js';
 import { drawPipeStroke } from './pipes-brush.js';
 import { drawFireStroke } from './fire-brush.js';
 import { drawRectStroke } from './rect-tool.js';
@@ -53,6 +54,14 @@ export function drawStroke(x, y) {
       state.lastX=state.canvasW-_savLastX; state.vineStroke=state.mirrorVineStroke;
       drawVineStroke(state.canvasW-x, y, c);
       state.mirrorVineStroke=state.vineStroke; state.vineStroke=_savVS; state.lastX=_savLastX;
+    }
+  } else if (state.tool === 'vine2') {
+    drawVineStrokeV2(x, y, c);
+    if (state.mirrorMode) {
+      var _savLastX=state.lastX, _savV2=state.vineStrokeV2;
+      state.lastX=state.canvasW-_savLastX; state.vineStrokeV2=state.mirrorVineStrokeV2;
+      drawVineStrokeV2(state.canvasW-x, y, c);
+      state.mirrorVineStrokeV2=state.vineStrokeV2; state.vineStrokeV2=_savV2; state.lastX=_savLastX;
     }
   } else if (state.tool === 'pipe') {
     drawPipeStroke(x, y, c);
