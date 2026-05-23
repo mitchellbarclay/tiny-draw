@@ -1,0 +1,7 @@
+{
+  "name": "drawing-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "npx serve . --listen 3000 --no-clipboard"
+  }
+}
