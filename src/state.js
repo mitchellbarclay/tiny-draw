@@ -82,6 +82,8 @@ const state = {
   // Vine v2 (alt testing tool)
   vineStrokeV2: null,
   mirrorVineStrokeV2: null,
+  vineLiveLeaves: [],
+  vineAnimFrame: null,
 
   // Pipes
   pipeStroke: null,

@@ -1,7 +1,14 @@
 import state from '../state.js';
 import { adjacentColor, shadeColor } from '../core/color-utils.js';
 
-// Draw a bezier-curve leaf shape. Caller sets ctx.globalAlpha before calling.
+var GROW_DURATION = 220; // ms per leaf grow-in
+
+function easeOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Draw a bezier-curve leaf. Caller sets ctx.globalAlpha before calling.
+// cx/cy are the base (stem attachment), dx/dy are the normalised growth direction.
 function drawLeaf(ctx, cx, cy, dx, dy, len, squat, fillColor, rimColor) {
   ctx.save();
 
@@ -33,7 +40,7 @@ function drawLeaf(ctx, cx, cy, dx, dy, len, squat, fillColor, rimColor) {
   ctx.globalAlpha = baseAlpha * 0.90;
   ctx.fill();
 
-  // Rim edge
+  // Rim stroke
   ctx.strokeStyle = rimColor;
   ctx.lineWidth = Math.max(0.5, len * 0.025);
   ctx.lineCap = 'round';
@@ -41,15 +48,14 @@ function drawLeaf(ctx, cx, cy, dx, dy, len, squat, fillColor, rimColor) {
   ctx.globalAlpha = baseAlpha * 0.28;
   ctx.stroke();
 
-  // Highlight — smaller leaf offset slightly toward the light side
+  // Highlight — smaller leaf offset toward the lit side
   var hiLen = len * 0.68, hiHW = halfW * 0.42;
-  var hiOx = cx + px * halfW * 0.25, hiOy = cy + py * halfW * 0.25;
-  leafPath(hiOx, hiOy, hiLen, hiHW);
+  leafPath(cx + px * halfW * 0.25, cy + py * halfW * 0.25, hiLen, hiHW);
   ctx.fillStyle = shadeColor(fillColor, +0.30, -6);
   ctx.globalAlpha = baseAlpha * 0.36;
   ctx.fill();
 
-  // Midrib line
+  // Midrib
   ctx.beginPath();
   ctx.moveTo(cx, cy);
   ctx.lineTo(cx + dx * len * 0.86, cy + dy * len * 0.86);
@@ -59,6 +65,48 @@ function drawLeaf(ctx, cx, cy, dx, dy, len, squat, fillColor, rimColor) {
   ctx.stroke();
 
   ctx.restore();
+}
+
+// Draw a leaf at full scale to the given context (used when committing).
+function commitLeaf(ctx, leaf) {
+  ctx.save();
+  ctx.translate(leaf.cx, leaf.cy);
+  ctx.globalAlpha = leaf.alpha;
+  drawLeaf(ctx, 0, 0, leaf.dx, leaf.dy, leaf.len, leaf.squat, leaf.fillColor, leaf.rimColor);
+  ctx.restore();
+}
+
+function vineOverlayFrame() {
+  if (!state.vineLiveLeaves.length) {
+    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+    state.vineAnimFrame = null;
+    return;
+  }
+
+  var now = performance.now();
+  state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+
+  state.vineLiveLeaves = state.vineLiveLeaves.filter(function(leaf) {
+    var t = Math.min(1, (now - leaf.born) / leaf.growDuration);
+    var scale = easeOut(t);
+
+    if (t >= 1) {
+      commitLeaf(state.ctx, leaf);
+      return false;
+    }
+
+    // Draw growing leaf on overlay, scaled around its base point
+    state.ovCtx.save();
+    state.ovCtx.translate(leaf.cx, leaf.cy);
+    state.ovCtx.scale(scale, scale);
+    state.ovCtx.globalAlpha = leaf.alpha * (0.35 + 0.65 * t); // fade in as it grows
+    drawLeaf(state.ovCtx, 0, 0, leaf.dx, leaf.dy, leaf.len, leaf.squat, leaf.fillColor, leaf.rimColor);
+    state.ovCtx.restore();
+
+    return true;
+  });
+
+  state.vineAnimFrame = requestAnimationFrame(vineOverlayFrame);
 }
 
 export function drawVineStrokeV2(x, y, col) {
@@ -96,10 +144,9 @@ export function drawVineStrokeV2(x, y, col) {
     }
   }
 
-  // Stem drawing
+  // Stem — drawn directly to main canvas
   var stemW = Math.max(1.5, state.brushSize * 0.19);
   var wob = 1 + 0.14 * Math.sin(st.stemDist * 0.020 + st.phase);
-
   var tdx = d > 0 ? ddx / d : (st.dir ? st.dir[0] : 1);
   var tdy = d > 0 ? ddy / d : (st.dir ? st.dir[1] : 0);
   var snx = -tdy, sny = tdx;
@@ -110,7 +157,6 @@ export function drawVineStrokeV2(x, y, col) {
   state.ctx.lineCap = 'round';
   state.ctx.lineJoin = 'round';
 
-  // Dark underside shadow
   if (stemW > 2) {
     state.ctx.beginPath();
     state.ctx.moveTo(st.lx - snx * off, st.ly - sny * off);
@@ -121,7 +167,6 @@ export function drawVineStrokeV2(x, y, col) {
     state.ctx.stroke();
   }
 
-  // Main stem
   state.ctx.beginPath();
   state.ctx.moveTo(st.lx, st.ly);
   state.ctx.lineTo(x, y);
@@ -130,7 +175,6 @@ export function drawVineStrokeV2(x, y, col) {
   state.ctx.globalAlpha = 1.0;
   state.ctx.stroke();
 
-  // Highlight stripe
   if (stemW > 2.5) {
     state.ctx.beginPath();
     state.ctx.moveTo(st.lx + snx * off * 0.6, st.ly + sny * off * 0.6);
@@ -147,7 +191,7 @@ export function drawVineStrokeV2(x, y, col) {
   st.stemDist += d;
   st.accumLeaf += d;
 
-  // Spawn leaves when threshold is crossed
+  // Spawn leaves — added to live array so they animate on the overlay
   while (st.accumLeaf >= st.nextLeafSpacing && st.dir) {
     st.accumLeaf -= st.nextLeafSpacing;
     st.nextLeafSpacing = st.leafBase * (0.65 + Math.random() * 0.60);
@@ -161,24 +205,42 @@ export function drawVineStrokeV2(x, y, col) {
     var lm = Math.hypot(ldx, ldy) || 1;
     ldx /= lm; ldy /= lm;
 
-    // Slight random rotation
     var ang = (Math.random() - 0.5) * 0.80;
     var ca = Math.cos(ang), sa = Math.sin(ang);
-    var rxd = ldx * ca - ldy * sa;
-    var ryd = ldx * sa + ldy * ca;
 
     var leafLen = Math.max(16, state.brushSize * 1.35) * (0.75 + Math.random() * 0.55);
     var leafCol = adjacentColor(col, 25);
-    var leafRim = shadeColor(leafCol, -0.25, +8);
 
-    state.ctx.save();
-    state.ctx.globalAlpha = 0.78 + Math.random() * 0.18;
-    drawLeaf(state.ctx, x, y, rxd, ryd, leafLen, st.leafSquat, leafCol, leafRim);
-    state.ctx.restore();
+    state.vineLiveLeaves.push({
+      cx: x, cy: y,
+      dx: ldx * ca - ldy * sa,
+      dy: ldx * sa + ldy * ca,
+      len: leafLen,
+      squat: st.leafSquat,
+      fillColor: leafCol,
+      rimColor: shadeColor(leafCol, -0.25, +8),
+      alpha: 0.78 + Math.random() * 0.18,
+      born: performance.now(),
+      growDuration: GROW_DURATION + Math.random() * 80,
+    });
+
+    if (!state.vineAnimFrame) {
+      state.vineAnimFrame = requestAnimationFrame(vineOverlayFrame);
+    }
   }
 }
 
 export function finalizeVineStrokeV2() {
+  // Commit any leaves still animating immediately
+  state.vineLiveLeaves.forEach(function(leaf) { commitLeaf(state.ctx, leaf); });
+  state.vineLiveLeaves = [];
+
+  if (state.vineAnimFrame) {
+    cancelAnimationFrame(state.vineAnimFrame);
+    state.vineAnimFrame = null;
+  }
+  state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+
   if (state.mirrorVineStrokeV2) state.mirrorVineStrokeV2 = null;
   state.vineStrokeV2 = null;
 }
