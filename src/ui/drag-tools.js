@@ -939,7 +939,15 @@ function alienStarblast(dropX, dropY, ghostEl, onDone) {
       ghostEl.style.left = (canvasRect.left + ufoX + shakeX) + 'px';
       ghostEl.style.top  = (canvasRect.top  + ufoY + shakeY) + 'px';
       ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + t * 0.22) + ')';
-      if (t >= 1) { doBlast(ufoX, ufoY); phase = 'recovering'; phaseT = now; }
+      if (t >= 1) {
+        phase = 'blasting'; phaseT = now;
+        doBlast(ufoX, ufoY, function() { phase = 'recovering'; phaseT = performance.now(); });
+      }
+
+    } else if (phase === 'blasting') {
+      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + ufoY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(1.22)';
 
     } else if (phase === 'recovering') {
       var t = Math.min(1, elapsed / 260);
