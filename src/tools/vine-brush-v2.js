@@ -170,7 +170,8 @@ export function drawVineStrokeV2(x, y, col) {
   }
 
   // Stem — direct to main canvas
-  var stemW = Math.max(1.5, state.brushSize * 0.19);
+  // Original stamps with radius brushSize*0.20, so effective diameter ≈ brushSize*0.40
+  var stemW = Math.max(2, state.brushSize * 0.38);
   var wob   = 1 + 0.14 * Math.sin(st.stemDist * 0.020 + st.phase);
   var tdx = d > 0 ? ddx / d : (st.dir ? st.dir[0] : 1);
   var tdy = d > 0 ? ddy / d : (st.dir ? st.dir[1] : 0);
@@ -244,7 +245,7 @@ export function drawVineStrokeV2(x, y, col) {
       dx: ldx * ca - ldy * sa,
       dy: ldx * sa + ldy * ca,
       len:       leafLen,
-      squat:     0.26 + Math.random() * 0.16, // narrower, like original (0.24–0.38 range)
+      squat:     0.48 + Math.random() * 0.20, // bezier paths need ~2x squat vs stamp system to look equivalent
       peakT:     0.36 + Math.random() * 0.14,
       asym:      (Math.random() - 0.5) * 0.28, // subtle asymmetry only
       fillColor: leafCol,
