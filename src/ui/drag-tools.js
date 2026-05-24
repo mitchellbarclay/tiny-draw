@@ -624,9 +624,6 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
 
   ghostEl.style.transition = 'none';
   ghostEl.style.opacity = '1';
-  ghostEl.style.left = (canvasRect.left + beamX) + 'px';
-  ghostEl.style.top  = (canvasRect.top + startY) + 'px';
-  ghostEl.style.transform = 'translate(-50%,-50%) scale(0.7)';
 
   function spawnParticle() {
     particles.push({
@@ -744,10 +741,10 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
     }
 
     if (phase === 'descend') {
-      var t = Math.min(1, elapsed / 500);
+      var t = Math.min(1, elapsed / 400);
       var e = 1 - Math.pow(1 - t, 3);
-      ghostEl.style.top = (canvasRect.top + startY + (hoverY - startY) * e) + 'px';
-      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (0.7 + e * 0.3) + ')';
+      ghostEl.style.top = (canvasRect.top + dropY + (hoverY - dropY) * e) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
       if (t >= 1) { phase = 'beaming'; phaseT = now; }
 
     } else if (phase === 'beaming') {
@@ -823,7 +820,6 @@ function alienStarblast(dropX, dropY, ghostEl, onDone) {
       var col = pickAlienColor();
       state.ctx.save();
       state.ctx.strokeStyle = col; state.ctx.lineWidth = lw; state.ctx.lineCap = 'round';
-      state.ctx.shadowColor = col; state.ctx.shadowBlur = 7;
       state.ctx.beginPath(); state.ctx.moveTo(cx, cy);
       state.ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len); state.ctx.stroke();
       state.ctx.fillStyle = col;
@@ -943,10 +939,9 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
 
   var cx = dropX, cy = dropY;
   var maxR = Math.min(state.canvasW, state.canvasH) * (0.12 + Math.random() * 0.15);
-  var nRings = 3 + Math.floor(Math.random() * 3);
-  var nSpokes = 4 + Math.floor(Math.random() * 4);
+  var nRings = 2 + Math.floor(Math.random() * 3);
+  var nSpokes = 3 + Math.floor(Math.random() * 4);
   var hoverY = Math.max(12, cy - maxR - 35);
-  var startY = hoverY - 65;
 
   // Pre-compute stable colors and widths
   var ringColors = [], ringWidths = [], spokeColors = [], spokeWidths = [];
@@ -954,7 +949,7 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
   for (var i = 0; i < nSpokes; i++) { spokeColors.push(pickAlienColor()); spokeWidths.push(1.2 + Math.random() * 1.3); }
   var dotColor = pickAlienColor();
 
-  var RING_DUR = 380, SPOKE_DUR = 160;
+  var RING_DUR = 210, SPOKE_DUR = 90;
   var totalDur = nRings * RING_DUR + nSpokes * SPOKE_DUR + 120;
   var ringProgress = new Array(nRings).fill(0); // radians drawn per ring
   var spokeProgress = new Array(nSpokes).fill(0); // 0..1 fraction drawn per spoke
@@ -964,9 +959,6 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
   var phase = 'descend', phaseT = performance.now(), drawT = 0;
   ghostEl.style.transition = 'none';
   ghostEl.style.opacity = '1';
-  ghostEl.style.left = (canvasRect.left + cx) + 'px';
-  ghostEl.style.top  = (canvasRect.top + startY) + 'px';
-  ghostEl.style.transform = 'translate(-50%,-50%) scale(0.72)';
 
   function getRingR(i) { return maxR * ((nRings - i) / nRings); }
 
@@ -979,7 +971,6 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
         var r = getRingR(i);
         state.ctx.save();
         state.ctx.strokeStyle = ringColors[i]; state.ctx.lineWidth = ringWidths[i];
-        state.ctx.shadowColor = ringColors[i]; state.ctx.shadowBlur = 8;
         state.ctx.beginPath();
         state.ctx.arc(cx, cy, r, ringProgress[i] - Math.PI / 2, targetAngle - Math.PI / 2);
         state.ctx.stroke();
@@ -998,7 +989,7 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
       var innerR = maxR * 0.09, outerR = maxR;
       state.ctx.save();
       state.ctx.strokeStyle = spokeColors[i]; state.ctx.lineWidth = spokeWidths[i];
-      state.ctx.shadowColor = spokeColors[i]; state.ctx.shadowBlur = 5; state.ctx.lineCap = 'round';
+      state.ctx.lineCap = 'round';
       state.ctx.beginPath();
       state.ctx.moveTo(cx + Math.cos(ang) * (innerR + (outerR - innerR) * spokeProgress[i]),
                        cy + Math.sin(ang) * (innerR + (outerR - innerR) * spokeProgress[i]));
@@ -1013,7 +1004,7 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
     // Centre dot
     if (!dotDrawn && drawElapsed >= spokesStart + nSpokes * SPOKE_DUR) {
       state.ctx.save();
-      state.ctx.fillStyle = dotColor; state.ctx.shadowColor = dotColor; state.ctx.shadowBlur = 12;
+      state.ctx.fillStyle = dotColor;
       state.ctx.beginPath(); state.ctx.arc(cx, cy, maxR * 0.07, 0, Math.PI * 2); state.ctx.fill();
       state.ctx.restore();
       dotDrawn = true; cursorX = cx; cursorY = cy;
@@ -1036,10 +1027,10 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
     var now = performance.now(), elapsed = now - phaseT;
 
     if (phase === 'descend') {
-      var t = Math.min(1, elapsed / 530);
+      var t = Math.min(1, elapsed / 380);
       var e = 1 - Math.pow(1 - t, 3);
-      ghostEl.style.top = (canvasRect.top + startY + (hoverY - startY) * e) + 'px';
-      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (0.72 + e * 0.28) + ')';
+      ghostEl.style.top = (canvasRect.top + dropY + (hoverY - dropY) * e) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
       if (t >= 1) { phase = 'drawing'; phaseT = now; drawT = now; }
 
     } else if (phase === 'drawing') {
