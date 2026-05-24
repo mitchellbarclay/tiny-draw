@@ -16,7 +16,14 @@
 @property --accent-dark { syntax: '<color>'; initial-value: #2d6a68; inherits: true; }
 body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, var(--bg-c3) 100%); font-family: 'Fredoka', sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: row; transition: --bg-c1 0.15s linear, --bg-c2 0.15s linear, --bg-c3 0.15s linear, --rail-bg 0.15s linear, --accent 0.15s linear; }
 #left-rail, #right-rail { width: 84px; flex-shrink: 0; background: var(--rail-bg); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 16px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-#tool-pill { background: transparent; border-radius: 26px; padding: 0; display: flex; flex-direction: column; gap: 14px; align-items: center; flex-shrink: 0; overflow: visible; }
+#tool-pill { background: transparent; display: flex; flex-direction: column; gap: 5px; align-items: center; flex: 1 1 0; min-height: 0; overflow: hidden; width: 100%; }
+#tool-scroll-viewport { flex: 1 1 0; min-height: 0; overflow: hidden; width: 100%; display: flex; flex-direction: column; align-items: center; }
+#tool-list { display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 2px 0; will-change: transform; }
+.tool-overflow-btn { width: 28px; height: 0; overflow: hidden; border-radius: 50%; border: none; background: rgba(255,255,255,0.20); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; flex-shrink: 0; transition: height 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.18s ease; color: rgba(255,255,255,0.85); }
+.tool-overflow-btn.visible { height: 28px; opacity: 1; pointer-events: auto; }
+.tool-overflow-btn:hover { background: rgba(255,255,255,0.35); }
+.tool-overflow-btn:active { transform: scale(0.88); }
+.tool-overflow-btn .mir { font-size: 18px; }
 .tool-btn { width: 46px; height: 46px; border-radius: 50%; background: transparent; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); flex-shrink: 0; user-select: none; }
 .tool-btn.active { background: var(--accent); box-shadow: inset 0 0 0 2px var(--accent-dark); transform: scale(1.22); }
 .tool-btn.active[data-tool="eraser"] { background: #ffffff; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.18); }
@@ -108,15 +115,21 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 
 <div id="left-rail">
   <div id="tool-pill">
-    <button class="tool-btn active" data-tool="pencil"><img src="custom-icons/Pen.svg" alt=""></button>
-    <button class="tool-btn" data-tool="eraser"><img src="custom-icons/Eraser.svg" alt=""></button>
-    <button class="tool-btn" data-tool="splatter"><img src="custom-icons/Bubbles.svg" alt=""></button>
-    <button class="tool-btn" data-tool="fire"><img src="custom-icons/Flame.svg" alt=""></button>
-    <button class="tool-btn" data-tool="bolt"><img src="custom-icons/Lightning.svg" alt=""></button>
-    <button class="tool-btn" data-tool="vine"><img src="custom-icons/Leaf.svg" alt=""></button>
-    <button class="tool-btn" data-tool="pipe"><img src="custom-icons/Pipe.svg" alt=""></button>
-    <button class="tool-btn" data-tool="rect"><img src="custom-icons/rect_outline.svg" alt=""></button>
-    <button class="tool-btn" data-tool="ellipse"><img src="custom-icons/ellipse_outline.svg" alt=""></button>
+    <button id="tool-overflow-up" class="tool-overflow-btn" aria-label="Scroll up"><span class="mir">expand_less</span></button>
+    <div id="tool-scroll-viewport">
+      <div id="tool-list">
+        <button class="tool-btn active" data-tool="pencil"><img src="custom-icons/Pen.svg" alt=""></button>
+        <button class="tool-btn" data-tool="eraser"><img src="custom-icons/Eraser.svg" alt=""></button>
+        <button class="tool-btn" data-tool="splatter"><img src="custom-icons/Bubbles.svg" alt=""></button>
+        <button class="tool-btn" data-tool="fire"><img src="custom-icons/Flame.svg" alt=""></button>
+        <button class="tool-btn" data-tool="bolt"><img src="custom-icons/Lightning.svg" alt=""></button>
+        <button class="tool-btn" data-tool="vine"><img src="custom-icons/Leaf.svg" alt=""></button>
+        <button class="tool-btn" data-tool="pipe"><img src="custom-icons/Pipe.svg" alt=""></button>
+        <button class="tool-btn" data-tool="rect"><img src="custom-icons/rect_outline.svg" alt=""></button>
+        <button class="tool-btn" data-tool="ellipse"><img src="custom-icons/ellipse_outline.svg" alt=""></button>
+      </div>
+    </div>
+    <button id="tool-overflow-down" class="tool-overflow-btn" aria-label="Scroll down"><span class="mir">expand_more</span></button>
   </div>
   <button id="mirror-toggle" title="Mirror"><img src="custom-icons/Mirror.svg" alt="Mirror"></button>
   <button id="save-btn"><span class="mir" style="font-size:22px;">download</span></button>

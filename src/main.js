@@ -12,6 +12,7 @@ import { finalizePipeStroke } from './tools/pipes-brush.js';
 import { initColorPicker, onColorMove, onColorRelease } from './ui/color-picker.js';
 import { initBrushSlider, onSliderMove, onSliderRelease } from './ui/brush-slider.js';
 import { initToolbar, hideRectSubmenu, hideEllipseSubmenu } from './ui/toolbar.js';
+import { initToolbarOverflow } from './ui/toolbar-overflow.js';
 import { initDragTools } from './ui/drag-tools.js';
 import { initDock } from './ui/dock.js';
 
@@ -129,5 +130,6 @@ window.addEventListener('touchend', function() {
 initBrushSlider();
 initColorPicker();
 initToolbar();
+initToolbarOverflow();
 initDragTools();
 initDock();
