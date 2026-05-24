@@ -245,7 +245,7 @@ export function drawVineStrokeV2(x, y, col) {
       dx: ldx * ca - ldy * sa,
       dy: ldx * sa + ldy * ca,
       len:       leafLen,
-      squat:     0.48 + Math.random() * 0.20, // bezier paths need ~2x squat vs stamp system to look equivalent
+      squat:     0.62 + Math.random() * 0.20, // bezier paths need ~2x squat vs stamp system to look equivalent
       peakT:     0.36 + Math.random() * 0.14,
       asym:      (Math.random() - 0.5) * 0.28, // subtle asymmetry only
       fillColor: leafCol,
