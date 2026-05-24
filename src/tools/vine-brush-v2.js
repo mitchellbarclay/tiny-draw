@@ -12,10 +12,9 @@ function easeOut(t) {
 //   len         — total length
 //   squat       — width-to-length ratio
 //   peakT       — where the leaf is widest (0–1 along length)
-//   asym        — left/right bulge asymmetry (–1..+1)
+//   asym        — left/right bulge asymmetry (–0.5..+0.5)
 //   fillColor   — base fill colour
-//   rimColor    — vein and edge colour
-//   veins       — array of {t, side, reach}
+//   rimColor    — midrib and edge colour
 //
 // Caller must ctx.translate(cx, cy) and set ctx.globalAlpha before calling.
 function drawLeaf(ctx, leaf) {
@@ -58,45 +57,40 @@ function drawLeaf(ctx, leaf) {
   ctx.globalAlpha = baseAlpha * 0.92;
   ctx.fill();
 
-  // Soft rim
-  mainPath();
-  ctx.strokeStyle = leaf.rimColor;
-  ctx.lineWidth = Math.max(0.4, len * 0.018);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.globalAlpha = baseAlpha * 0.20;
-  ctx.stroke();
+  // Inner highlight — smaller leaf offset to the lit side, gives volume without lines
+  function hiPath() {
+    var hl = len * 0.64, hhw = halfW * 0.38;
+    var hox = px * halfW * 0.20, hoy = py * halfW * 0.20;
+    ctx.beginPath();
+    ctx.moveTo(hox, hoy);
+    ctx.bezierCurveTo(
+      hox + dx * hl * 0.10 - px * hhw * 0.55, hoy + dy * hl * 0.10 - py * hhw * 0.55,
+      hox + dx * hl * pt   - px * hhw,         hoy + dy * hl * pt   - py * hhw,
+      hox + dx * hl,                            hoy + dy * hl
+    );
+    ctx.bezierCurveTo(
+      hox + dx * hl * pt   + px * hhw,         hoy + dy * hl * pt   + py * hhw,
+      hox + dx * hl * 0.10 + px * hhw * 0.55,  hoy + dy * hl * 0.10 + py * hhw * 0.55,
+      hox, hoy
+    );
+    ctx.closePath();
+  }
+  hiPath();
+  ctx.fillStyle = shadeColor(leaf.fillColor, +0.28, -6);
+  ctx.globalAlpha = baseAlpha * 0.30;
+  ctx.fill();
 
-  // Midrib — curves slightly toward the heavier side
-  var mCtrlX = dx * len * 0.48 - px * halfW * al * 0.28;
-  var mCtrlY = dy * len * 0.48 - py * halfW * al * 0.28;
+  // Midrib — curves gently toward the heavier side
+  var mCtrlX = dx * len * 0.48 - px * halfW * al * 0.22;
+  var mCtrlY = dy * len * 0.48 - py * halfW * al * 0.22;
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(mCtrlX, mCtrlY, dx * len * 0.88, dy * len * 0.88);
+  ctx.quadraticCurveTo(mCtrlX, mCtrlY, dx * len * 0.86, dy * len * 0.86);
   ctx.strokeStyle = leaf.rimColor;
-  ctx.lineWidth = Math.max(0.5, len * 0.028);
-  ctx.globalAlpha = baseAlpha * 0.38;
+  ctx.lineWidth = Math.max(0.5, len * 0.026);
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = baseAlpha * 0.32;
   ctx.stroke();
-
-  // Side veins — curved branches off the midrib, alternating sides
-  ctx.lineWidth = Math.max(0.3, len * 0.014);
-  ctx.globalAlpha = baseAlpha * 0.24;
-  for (var v = 0; v < leaf.veins.length; v++) {
-    var vn = leaf.veins[v];
-    var vbx = dx * len * vn.t;
-    var vby = dy * len * vn.t;
-    // leaf width at this t position (sine profile)
-    var leafWatT = halfW * Math.sin(Math.PI * vn.t) * 0.9;
-    var sideX = vn.side * px, sideY = vn.side * py;
-    var vtipX = vbx + (dx * len * 0.10 + sideX * leafWatT) * vn.reach;
-    var vtipY = vby + (dy * len * 0.10 + sideY * leafWatT) * vn.reach;
-    var vcpX  = vbx + sideX * leafWatT * 0.5 * vn.reach;
-    var vcpY  = vby + sideY * leafWatT * 0.5 * vn.reach;
-    ctx.beginPath();
-    ctx.moveTo(vbx, vby);
-    ctx.quadraticCurveTo(vcpX, vcpY, vtipX, vtipY);
-    ctx.stroke();
-  }
 
   ctx.restore();
 }
@@ -243,16 +237,6 @@ export function drawVineStrokeV2(x, y, col) {
     var sizeJitter = 1.05 + Math.random() * 0.5;
     var leafLen = Math.max(18, state.brushSize * 1.4) * (0.78 + Math.random() * 0.55) * sizeJitter;
 
-    var numVeins = 3 + Math.floor(Math.random() * 2); // 3–4 veins
-    var veins = [];
-    for (var vi = 0; vi < numVeins; vi++) {
-      veins.push({
-        t:     0.20 + (vi / (numVeins - 1)) * 0.52,
-        side:  vi % 2 === 0 ? 1 : -1,
-        reach: 0.72 + Math.random() * 0.36,
-      });
-    }
-
     var leafCol = adjacentColor(col, 25);
 
     state.vineLiveLeaves.push({
@@ -262,10 +246,9 @@ export function drawVineStrokeV2(x, y, col) {
       len:       leafLen,
       squat:     0.26 + Math.random() * 0.16, // narrower, like original (0.24–0.38 range)
       peakT:     0.36 + Math.random() * 0.14,
-      asym:      (Math.random() - 0.5) * 0.50,
+      asym:      (Math.random() - 0.5) * 0.28, // subtle asymmetry only
       fillColor: leafCol,
       rimColor:  shadeColor(leafCol, -0.25, +8),
-      veins:     veins,
       alpha:     0.82 + Math.random() * 0.14,
       born:      performance.now(),
       growDuration: GROW_DURATION + Math.random() * 80,
