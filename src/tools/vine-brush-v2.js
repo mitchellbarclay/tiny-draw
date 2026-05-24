@@ -30,23 +30,23 @@ function drawLeaf(ctx, leaf) {
   var rhw = halfW * (1 - al); // right-side bulge
   var baseAlpha = ctx.globalAlpha;
 
-  function mainPath() {
+  function leafPath(ox, oy, l, lw, rw) {
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    // cp1 near base pulls out to full width fast; cp2 at 70% already nearly on axis
-    // → wide middle, tip arrives tangentially (soft, not a cusp)
+    ctx.moveTo(ox, oy);
     ctx.bezierCurveTo(
-      dx * len * 0.14 - px * lhw,        dy * len * 0.14 - py * lhw,
-      dx * len * 0.70 - px * lhw * 0.12, dy * len * 0.70 - py * lhw * 0.12,
-      dx * len,                           dy * len
+      ox + dx * l * 0.10 - px * lw * 0.55, oy + dy * l * 0.10 - py * lw * 0.55,
+      ox + dx * l * pt   - px * lw,         oy + dy * l * pt   - py * lw,
+      ox + dx * l,                           oy + dy * l
     );
     ctx.bezierCurveTo(
-      dx * len * 0.70 + px * rhw * 0.12, dy * len * 0.70 + py * rhw * 0.12,
-      dx * len * 0.14 + px * rhw,        dy * len * 0.14 + py * rhw,
-      0, 0
+      ox + dx * l * pt   + px * rw,         oy + dy * l * pt   + py * rw,
+      ox + dx * l * 0.10 + px * rw * 0.55,  oy + dy * l * 0.10 + py * rw * 0.55,
+      ox, oy
     );
     ctx.closePath();
   }
+
+  function mainPath() { leafPath(0, 0, len, lhw, rhw); }
 
   // Gradient fill: richer/darker at base, lighter at tip
   var grad = ctx.createLinearGradient(0, 0, dx * len, dy * len);
@@ -60,21 +60,8 @@ function drawLeaf(ctx, leaf) {
   ctx.fill();
 
   function hiPath() {
-    var hl = len * 0.62, hhw = halfW * 0.36;
-    var hox = px * halfW * 0.20, hoy = py * halfW * 0.20;
-    ctx.beginPath();
-    ctx.moveTo(hox, hoy);
-    ctx.bezierCurveTo(
-      hox + dx * hl * 0.14 - px * hhw,        hoy + dy * hl * 0.14 - py * hhw,
-      hox + dx * hl * 0.70 - px * hhw * 0.12, hoy + dy * hl * 0.70 - py * hhw * 0.12,
-      hox + dx * hl,                            hoy + dy * hl
-    );
-    ctx.bezierCurveTo(
-      hox + dx * hl * 0.70 + px * hhw * 0.12, hoy + dy * hl * 0.70 + py * hhw * 0.12,
-      hox + dx * hl * 0.14 + px * hhw,         hoy + dy * hl * 0.14 + py * hhw,
-      hox, hoy
-    );
-    ctx.closePath();
+    var hl = len * 0.65, hhw = halfW * 0.40;
+    leafPath(px * halfW * 0.22, py * halfW * 0.22, hl, hhw, hhw);
   }
   hiPath();
   ctx.fillStyle = shadeColor(leaf.fillColor, +0.28, -6);
@@ -172,9 +159,14 @@ export function drawVineStrokeV2(x, y, col) {
   }
 
   // Stem — direct to main canvas
-  // Original stamps with radius brushSize*0.20, so effective diameter ≈ brushSize*0.40
   var stemW = Math.max(2, state.brushSize * 0.38);
   var wob   = 1 + 0.14 * Math.sin(st.stemDist * 0.020 + st.phase);
+  // Perpendicular to stroke direction — for the cross-sectional gradient
+  var tdx = d > 0 ? ddx / d : (st.dir ? st.dir[0] : 1);
+  var tdy = d > 0 ? ddy / d : (st.dir ? st.dir[1] : 0);
+  var perp_x = -tdy, perp_y = tdx;
+  var hw = stemW * wob * 0.5;
+  var mx = (st.lx + x) * 0.5, my = (st.ly + y) * 0.5;
 
   // Midpoint-quadratic technique: arcs through midpoints give smooth joins
   var midX = (st.lx + x) * 0.5, midY = (st.ly + y) * 0.5;
@@ -191,14 +183,23 @@ export function drawVineStrokeV2(x, y, col) {
     }
   }
 
+  // Gradient perpendicular to stroke: dark edges, lighter centre — looks cylindrical
+  var stemGrad = state.ctx.createLinearGradient(
+    mx - perp_x * hw, my - perp_y * hw,
+    mx + perp_x * hw, my + perp_y * hw
+  );
+  stemGrad.addColorStop(0.00, st.stemDark);
+  stemGrad.addColorStop(0.30, col);
+  stemGrad.addColorStop(0.55, st.stemHi);
+  stemGrad.addColorStop(0.80, col);
+  stemGrad.addColorStop(1.00, st.stemDark);
+
   state.ctx.save();
   state.ctx.lineCap = 'round';
   state.ctx.lineJoin = 'round';
-  state.ctx.shadowBlur  = stemW * 1.8;
-  state.ctx.shadowColor = st.stemDark;
   stemPath(0, 0);
   state.ctx.lineWidth   = stemW * wob;
-  state.ctx.strokeStyle = col;
+  state.ctx.strokeStyle = stemGrad;
   state.ctx.globalAlpha = 1.0;
   state.ctx.stroke();
   state.ctx.restore();
