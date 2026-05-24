@@ -30,29 +30,19 @@ function drawLeaf(ctx, leaf) {
   var rhw = halfW * (1 - al); // right-side bulge
   var baseAlpha = ctx.globalAlpha;
 
-  // Two quadratic curves per edge: one to widen to peak, one to taper gently to tip.
-  // This lets the middle stay wide AND the tip arrive softly, no flat cap needed.
   function mainPath() {
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    // Left edge — base → peak (widens fast)
-    ctx.quadraticCurveTo(
-      dx * len * 0.08 - px * lhw * 0.90, dy * len * 0.08 - py * lhw * 0.90,
-      dx * len * pt   - px * lhw,         dy * len * pt   - py * lhw
-    );
-    // Left edge — peak → tip (tapers gently, control point nearly on axis)
-    ctx.quadraticCurveTo(
-      dx * len * 0.80 - px * lhw * 0.06, dy * len * 0.80 - py * lhw * 0.06,
+    // Left edge: cp1 pulls out to full width near base, cp2 is already converging past halfway
+    ctx.bezierCurveTo(
+      dx * len * 0.15 - px * lhw * 0.90, dy * len * 0.15 - py * lhw * 0.90,
+      dx * len * 0.62 - px * lhw * 0.38, dy * len * 0.62 - py * lhw * 0.38,
       dx * len,                           dy * len
     );
-    // Right edge — tip → peak (expands gently from tip)
-    ctx.quadraticCurveTo(
-      dx * len * 0.80 + px * rhw * 0.06, dy * len * 0.80 + py * rhw * 0.06,
-      dx * len * pt   + px * rhw,         dy * len * pt   + py * rhw
-    );
-    // Right edge — peak → base (closes fast)
-    ctx.quadraticCurveTo(
-      dx * len * 0.08 + px * rhw * 0.90, dy * len * 0.08 + py * rhw * 0.90,
+    // Right edge: mirrors back from tip to base
+    ctx.bezierCurveTo(
+      dx * len * 0.62 + px * rhw * 0.38, dy * len * 0.62 + py * rhw * 0.38,
+      dx * len * 0.15 + px * rhw * 0.90, dy * len * 0.15 + py * rhw * 0.90,
       0, 0
     );
     ctx.closePath();
@@ -69,26 +59,19 @@ function drawLeaf(ctx, leaf) {
   ctx.globalAlpha = baseAlpha;
   ctx.fill();
 
-  // Inner highlight — same two-quad shape, smaller + offset to lit side
   function hiPath() {
     var hl = len * 0.62, hhw = halfW * 0.36;
     var hox = px * halfW * 0.20, hoy = py * halfW * 0.20;
     ctx.beginPath();
     ctx.moveTo(hox, hoy);
-    ctx.quadraticCurveTo(
-      hox + dx * hl * 0.08 - px * hhw * 0.90, hoy + dy * hl * 0.08 - py * hhw * 0.90,
-      hox + dx * hl * pt   - px * hhw,          hoy + dy * hl * pt   - py * hhw
+    ctx.bezierCurveTo(
+      hox + dx * hl * 0.15 - px * hhw * 0.90, hoy + dy * hl * 0.15 - py * hhw * 0.90,
+      hox + dx * hl * 0.62 - px * hhw * 0.38,  hoy + dy * hl * 0.62 - py * hhw * 0.38,
+      hox + dx * hl,                             hoy + dy * hl
     );
-    ctx.quadraticCurveTo(
-      hox + dx * hl * 0.80 - px * hhw * 0.06, hoy + dy * hl * 0.80 - py * hhw * 0.06,
-      hox + dx * hl,                            hoy + dy * hl
-    );
-    ctx.quadraticCurveTo(
-      hox + dx * hl * 0.80 + px * hhw * 0.06, hoy + dy * hl * 0.80 + py * hhw * 0.06,
-      hox + dx * hl * pt   + px * hhw,          hoy + dy * hl * pt   + py * hhw
-    );
-    ctx.quadraticCurveTo(
-      hox + dx * hl * 0.08 + px * hhw * 0.90, hoy + dy * hl * 0.08 + py * hhw * 0.90,
+    ctx.bezierCurveTo(
+      hox + dx * hl * 0.62 + px * hhw * 0.38,  hoy + dy * hl * 0.62 + py * hhw * 0.38,
+      hox + dx * hl * 0.15 + px * hhw * 0.90,  hoy + dy * hl * 0.15 + py * hhw * 0.90,
       hox, hoy
     );
     ctx.closePath();
@@ -211,13 +194,6 @@ export function drawVineStrokeV2(x, y, col) {
   state.ctx.save();
   state.ctx.lineCap = 'round';
   state.ctx.lineJoin = 'round';
-  // Shadow: wider stroke at same centerline — dark peeks out equally on all sides, no ribbing
-  stemPath(0, 0);
-  state.ctx.lineWidth   = stemW * wob * 1.45;
-  state.ctx.strokeStyle = st.stemDark;
-  state.ctx.globalAlpha = 0.32;
-  state.ctx.stroke();
-  // Main stem on top
   stemPath(0, 0);
   state.ctx.lineWidth   = stemW * wob;
   state.ctx.strokeStyle = col;
