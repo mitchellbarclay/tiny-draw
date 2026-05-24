@@ -785,93 +785,33 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
 // First blast fires immediately at the drop point, then UFO teleports to 2-3
 // more positions for additional blasts. Charge rings expand before each blast.
 
-function alienStarblast(dropX, dropY, ghostEl, onDone) {
+function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
   saveHistory();
   state.lastStrokePoints = null;
   var canvasRect = state.canvasArea.getBoundingClientRect();
 
-  // First blast at the drop point, then random extras
-  var nExtra = 2 + Math.floor(Math.random() * 2);
-  var blasts = [{x: dropX, y: dropY}];
-  for (var i = 0; i < nExtra; i++) {
-    blasts.push({x: state.canvasW * (0.1 + Math.random() * 0.8), y: state.canvasH * (0.1 + Math.random() * 0.8)});
-  }
+  var ufoX = dropX;
+  var hoverY = Math.max(50, dropY - 85);
+  var pulseColor = pickAlienColor();
+  // Max radius: distance from drop point to farthest canvas corner
+  var maxR = Math.ceil(Math.sqrt(
+    Math.pow(Math.max(dropX, state.canvasW - dropX), 2) +
+    Math.pow(Math.max(dropY, state.canvasH - dropY), 2)
+  )) + 10;
+  var PULSE_SPEED = 520; // CSS px/s
 
-  var blastIdx = 0, fromX = dropX, fromY = dropY;
-  var ufoX = dropX, ufoY = dropY;
-  // Start charging immediately — no "move to drop" phase needed
-  var phase = 'charging', phaseT = performance.now();
+  var pulseR = 0;
+  var prevPulseR = 0;
+  var flashAlpha = 0;
+
+  var phase = 'rise';
+  var phaseT = performance.now();
 
   ghostEl.style.transition = 'none';
   ghostEl.style.opacity = '1';
-  ghostEl.style.left = (canvasRect.left + dropX) + 'px';
+  ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
   ghostEl.style.top  = (canvasRect.top  + dropY) + 'px';
   ghostEl.style.transform = 'translate(-50%,-50%)';
-
-  // Shockwave rings and flash managed in the animation loop
-  var shockwaves = [];
-  var flashX = 0, flashY = 0, flashAlpha = 0, flashR = 0;
-
-  function doBlast(cx, cy, onBurstDone) {
-    var nRays = 8 + Math.floor(Math.random() * 7);
-    var maxLen = 55 + Math.random() * 85;
-    var rayData = [];
-    for (var i = 0; i < nRays; i++) {
-      rayData.push({
-        angle: (i / nRays) * Math.PI * 2 + Math.random() * 0.25,
-        len: maxLen * (0.55 + Math.random() * 0.45),
-        lw: 3.5 + Math.random() * 5,
-        color: pickAlienColor(),
-        progress: 0
-      });
-    }
-    // Immediate flash + shockwave
-    shockwaves.push({x: cx, y: cy, r: 4, maxR: maxLen * 0.85, alpha: 0.9, color: pickAlienColor()});
-    flashX = cx; flashY = cy; flashAlpha = 1; flashR = maxLen * 0.6;
-
-    var burstT0 = performance.now();
-    var BURST_DUR = 360;
-    function burstFrame() {
-      var now = performance.now();
-      var t = Math.min(1, (now - burstT0) / BURST_DUR);
-      for (var i = 0; i < rayData.length; i++) {
-        var rd = rayData[i];
-        // Slight stagger per ray so they don't all arrive at once
-        var stagger = i / nRays * 0.18;
-        var rayT = t < stagger ? 0 : Math.min(1, (t - stagger) / (1 - stagger));
-        var newProg = 1 - Math.pow(1 - rayT, 2.5);
-        if (newProg <= rd.progress + 0.001) continue;
-        var x0 = cx + Math.cos(rd.angle) * rd.len * rd.progress;
-        var y0 = cy + Math.sin(rd.angle) * rd.len * rd.progress;
-        var x1 = cx + Math.cos(rd.angle) * rd.len * newProg;
-        var y1 = cy + Math.sin(rd.angle) * rd.len * newProg;
-        state.ctx.save();
-        state.ctx.strokeStyle = rd.color;
-        state.ctx.lineWidth = rd.lw;
-        state.ctx.lineCap = rd.progress < 0.01 ? 'round' : 'butt';
-        state.ctx.beginPath(); state.ctx.moveTo(x0, y0); state.ctx.lineTo(x1, y1); state.ctx.stroke();
-        state.ctx.restore();
-        rd.progress = newProg;
-      }
-      if (t < 1) { requestAnimationFrame(burstFrame); return; }
-      // Finalise: tip dots + bright centre
-      for (var i = 0; i < rayData.length; i++) {
-        var rd = rayData[i];
-        state.ctx.save();
-        state.ctx.fillStyle = rd.color;
-        state.ctx.beginPath();
-        state.ctx.arc(cx + Math.cos(rd.angle) * rd.len, cy + Math.sin(rd.angle) * rd.len, rd.lw * 0.85, 0, Math.PI * 2);
-        state.ctx.fill();
-        state.ctx.restore();
-      }
-      var cg = state.ctx.createRadialGradient(cx, cy, 0, cx, cy, maxLen * 0.18);
-      cg.addColorStop(0, 'rgba(255,255,255,0.95)'); cg.addColorStop(1, 'rgba(255,255,255,0)');
-      state.ctx.fillStyle = cg;
-      state.ctx.beginPath(); state.ctx.arc(cx, cy, maxLen * 0.18, 0, Math.PI * 2); state.ctx.fill();
-      onBurstDone();
-    }
-    requestAnimationFrame(burstFrame);
-  }
 
   var lastT = performance.now();
   function frame() {
@@ -879,92 +819,129 @@ function alienStarblast(dropX, dropY, ghostEl, onDone) {
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     var elapsed = now - phaseT;
-    var target = blasts[blastIdx];
 
-    // Decay shockwaves and flash each frame
-    for (var i = shockwaves.length - 1; i >= 0; i--) {
-      shockwaves[i].r += dt * 230; shockwaves[i].alpha -= dt * 2.8;
-      if (shockwaves[i].alpha <= 0) shockwaves.splice(i, 1);
-    }
-    flashAlpha = Math.max(0, flashAlpha - dt * 7);
+    flashAlpha = Math.max(0, flashAlpha - dt * 6);
 
     state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
 
-    // Draw shockwaves
-    for (var i = 0; i < shockwaves.length; i++) {
-      var sw = shockwaves[i];
+    // Draw impact flash
+    if (flashAlpha > 0) {
+      var fg = state.ovCtx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 55);
+      fg.addColorStop(0, 'rgba(255,255,255,' + flashAlpha.toFixed(3) + ')');
+      fg.addColorStop(0.5, pulseColor.replace('hsl(', 'hsla(').replace(')', ','+( flashAlpha * 0.6).toFixed(3)+')') );
+      fg.addColorStop(1, 'rgba(0,0,0,0)');
+      state.ovCtx.fillStyle = fg;
+      state.ovCtx.beginPath(); state.ovCtx.arc(dropX, dropY, 55, 0, Math.PI * 2); state.ovCtx.fill();
+    }
+
+    // Draw expanding pulse ring on overlay
+    if (phase === 'pulsing' && pulseR > 0 && pulseR < maxR + 30) {
+      var ringFade = Math.max(0, 1 - pulseR / maxR);
+      // Outer soft glow
       state.ovCtx.save();
-      state.ovCtx.globalAlpha = sw.alpha * 0.7;
-      state.ovCtx.strokeStyle = sw.color; state.ovCtx.lineWidth = 2.5;
-      state.ovCtx.beginPath(); state.ovCtx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2); state.ovCtx.stroke();
+      state.ovCtx.globalAlpha = ringFade * 0.45;
+      state.ovCtx.strokeStyle = pulseColor;
+      state.ovCtx.lineWidth = 22;
+      state.ovCtx.beginPath(); state.ovCtx.arc(dropX, dropY, pulseR, 0, Math.PI * 2); state.ovCtx.stroke();
+      state.ovCtx.restore();
+      // Mid ring
+      state.ovCtx.save();
+      state.ovCtx.globalAlpha = ringFade * 0.75;
+      state.ovCtx.strokeStyle = pulseColor;
+      state.ovCtx.lineWidth = 7;
+      state.ovCtx.beginPath(); state.ovCtx.arc(dropX, dropY, pulseR, 0, Math.PI * 2); state.ovCtx.stroke();
+      state.ovCtx.restore();
+      // Bright white core
+      state.ovCtx.save();
+      state.ovCtx.globalAlpha = ringFade * 0.95;
+      state.ovCtx.strokeStyle = 'white';
+      state.ovCtx.lineWidth = 2;
+      state.ovCtx.beginPath(); state.ovCtx.arc(dropX, dropY, pulseR, 0, Math.PI * 2); state.ovCtx.stroke();
       state.ovCtx.restore();
     }
-    // Draw flash
-    if (flashAlpha > 0) {
-      var fg = state.ovCtx.createRadialGradient(flashX, flashY, 0, flashX, flashY, flashR);
-      fg.addColorStop(0, 'rgba(255,255,255,' + flashAlpha + ')');
-      fg.addColorStop(1, 'rgba(255,255,255,0)');
-      state.ovCtx.fillStyle = fg;
-      state.ovCtx.beginPath(); state.ovCtx.arc(flashX, flashY, flashR, 0, Math.PI * 2); state.ovCtx.fill();
-    }
 
-    if (phase === 'moving') {
-      var t = Math.min(1, elapsed / 350);
+    if (phase === 'rise') {
+      var t = Math.min(1, elapsed / 450);
       var e = 1 - Math.pow(1 - t, 3);
-      ufoX = fromX + (target.x - fromX) * e;
-      ufoY = fromY + (target.y - fromY) * e;
+      var cy = dropY + (hoverY - dropY) * e;
       ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
-      ghostEl.style.top  = (canvasRect.top  + ufoY) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + cy) + 'px';
       ghostEl.style.transform = 'translate(-50%,-50%)';
-      if (t >= 1) { ufoX = target.x; ufoY = target.y; phase = 'charging'; phaseT = now; }
+      if (t >= 1) { phase = 'charging'; phaseT = now; }
 
     } else if (phase === 'charging') {
-      var t = Math.min(1, elapsed / 520);
-      // Expanding concentric charge rings — 4 rings cycling continuously, growing with t
-      for (var r = 0; r < 4; r++) {
-        var ringT = (now * 0.003 + r * 0.25) % 1;
-        var rr = ringT * (20 + t * 25);
-        var ralpha = (1 - ringT) * 0.7 * t;
-        if (rr > 0.5 && ralpha > 0) {
+      var t = Math.min(1, elapsed / 850);
+      // Rings converge inward toward an orb below the UFO
+      var orbY = hoverY + 28;
+      for (var r = 0; r < 5; r++) {
+        var ringPhase = ((now * 0.0022 + r * 0.2) % 1);
+        var rr = (1 - ringPhase) * (28 + t * 18);
+        var ralpha = ringPhase * 0.85 * t;
+        if (rr > 1 && ralpha > 0.02) {
           state.ovCtx.save();
           state.ovCtx.globalAlpha = ralpha;
-          state.ovCtx.strokeStyle = 'hsl(' + ((blastIdx * 90 + r * 60) % 360) + ',100%,70%)';
-          state.ovCtx.lineWidth = 2;
-          state.ovCtx.beginPath(); state.ovCtx.arc(ufoX, ufoY, rr, 0, Math.PI * 2); state.ovCtx.stroke();
+          state.ovCtx.strokeStyle = pulseColor;
+          state.ovCtx.lineWidth = 1.5;
+          state.ovCtx.beginPath(); state.ovCtx.arc(ufoX, orbY, rr, 0, Math.PI * 2); state.ovCtx.stroke();
           state.ovCtx.restore();
         }
       }
-      var shakeX = t > 0.5 ? (Math.random() - 0.5) * t * 10 : 0;
-      var shakeY = t > 0.5 ? (Math.random() - 0.5) * t * 10 : 0;
-      ghostEl.style.left = (canvasRect.left + ufoX + shakeX) + 'px';
-      ghostEl.style.top  = (canvasRect.top  + ufoY + shakeY) + 'px';
-      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + t * 0.22) + ')';
+      // Glowing orb grows as charge builds
+      var orbR = t * 14;
+      if (orbR > 0.5) {
+        var og = state.ovCtx.createRadialGradient(ufoX, orbY, 0, ufoX, orbY, orbR);
+        og.addColorStop(0, 'rgba(255,255,255,0.95)');
+        og.addColorStop(0.45, pulseColor.replace('hsl(', 'hsla(').replace(')', ',0.7)'));
+        og.addColorStop(1, 'rgba(0,0,0,0)');
+        state.ovCtx.fillStyle = og;
+        state.ovCtx.beginPath(); state.ovCtx.arc(ufoX, orbY, orbR, 0, Math.PI * 2); state.ovCtx.fill();
+      }
+      var shakeAmt = t > 0.65 ? ((t - 0.65) / 0.35) * 7 : 0;
+      ghostEl.style.left = (canvasRect.left + ufoX + (Math.random() - 0.5) * shakeAmt) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + hoverY + (Math.random() - 0.5) * shakeAmt) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + t * 0.18) + ')';
+      if (t >= 1) { phase = 'fire'; phaseT = now; }
+
+    } else if (phase === 'fire') {
+      var t = Math.min(1, elapsed / 170);
+      flashAlpha = 1;
+      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + hoverY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1.18 - t * 0.18) + ')';
       if (t >= 1) {
-        phase = 'blasting'; phaseT = now;
-        doBlast(ufoX, ufoY, function() { phase = 'recovering'; phaseT = performance.now(); });
+        phase = 'pulsing'; phaseT = now;
+        // Permanent stamp at epicentre — small bright circle left on canvas
+        var cg = state.ctx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 16);
+        cg.addColorStop(0, 'rgba(255,255,255,0.9)');
+        cg.addColorStop(0.5, pulseColor.replace('hsl(', 'hsla(').replace(')', ',0.5)'));
+        cg.addColorStop(1, 'rgba(0,0,0,0)');
+        state.ctx.fillStyle = cg;
+        state.ctx.beginPath(); state.ctx.arc(dropX, dropY, 16, 0, Math.PI * 2); state.ctx.fill();
       }
 
-    } else if (phase === 'blasting') {
-      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
-      ghostEl.style.top  = (canvasRect.top  + ufoY) + 'px';
-      ghostEl.style.transform = 'translate(-50%,-50%) scale(1.22)';
-
-    } else if (phase === 'recovering') {
-      var t = Math.min(1, elapsed / 260);
-      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
-      ghostEl.style.top  = (canvasRect.top  + ufoY) + 'px';
-      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + (1 - t) * 0.3) + ')';
-      if (t >= 1) {
-        blastIdx++;
-        if (blastIdx >= blasts.length) { phase = 'leaving'; phaseT = now; }
-        else { fromX = ufoX; fromY = ufoY; phase = 'moving'; phaseT = now; }
+    } else if (phase === 'pulsing') {
+      prevPulseR = pulseR;
+      pulseR += dt * PULSE_SPEED;
+      // Permanent thin colored ring on main canvas as wave passes — "stains" the drawing
+      var stainAlpha = 0.13 * Math.max(0, 1 - pulseR / maxR);
+      if (stainAlpha > 0.005 && pulseR > 1) {
+        state.ctx.save();
+        state.ctx.globalAlpha = stainAlpha;
+        state.ctx.strokeStyle = pulseColor;
+        state.ctx.lineWidth = Math.max(2.5, (pulseR - prevPulseR) * 2.2);
+        state.ctx.beginPath(); state.ctx.arc(dropX, dropY, pulseR, 0, Math.PI * 2); state.ctx.stroke();
+        state.ctx.restore();
       }
+      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + hoverY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
+      if (pulseR >= maxR) { phase = 'leaving'; phaseT = now; }
 
     } else if (phase === 'leaving') {
-      var t = Math.min(1, elapsed / 420);
+      var t = Math.min(1, elapsed / 480);
       ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
-      ghostEl.style.top  = (canvasRect.top  + ufoY - state.canvasH * 0.5 * t * t) + 'px';
-      ghostEl.style.opacity = String(Math.max(0, 1 - t * 1.6));
+      ghostEl.style.top  = (canvasRect.top  + hoverY - state.canvasH * 0.55 * t * t) + 'px';
+      ghostEl.style.opacity = String(Math.max(0, 1 - t * 1.7));
       if (t >= 1) { state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH); onDone(); return; }
     }
 
@@ -1115,7 +1092,7 @@ export function initDragTools() {
   var tornadoTool = makeDragTool('tornado-btn', function(x, y, ghostEl) {
     return new Promise(function(resolve) { tornadoExit(ghostEl, resolve); });
   });
-  var alienEffects = [alienFlight, alienBeam, alienStarblast, alienCropCircles];
+  var alienEffects = [alienFlight, alienBeam, alienPlasmaPulse, alienCropCircles];
   var alienTool = makeDragTool('alien-btn', function(x, y, ghostEl) {
     return new Promise(function(resolve) {
       alienEffects[Math.floor(Math.random() * alienEffects.length)](x, y, ghostEl, resolve);
