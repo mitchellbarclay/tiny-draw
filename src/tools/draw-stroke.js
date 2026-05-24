@@ -2,7 +2,6 @@ import state from '../state.js';
 import { getBrushStamp, getEraserStamp, stampLine } from '../core/brush-pipeline.js';
 import { drawSplatterStroke } from './bubble-brush.js';
 import { drawBoltStroke } from './bolt-brush.js';
-import { drawVineStroke } from './vine-brush.js';
 import { drawVineStrokeV2 } from './vine-brush-v2.js';
 import { drawPipeStroke } from './pipes-brush.js';
 import { drawFireStroke } from './fire-brush.js';
