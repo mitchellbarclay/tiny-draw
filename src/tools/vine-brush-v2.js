@@ -33,16 +33,16 @@ function drawLeaf(ctx, leaf) {
   function mainPath() {
     ctx.beginPath();
     ctx.moveTo(0, 0);
-    // Left edge: cp1 pulls out to full width near base, cp2 is already converging past halfway
+    // cp1 near base pulls out to full width fast; cp2 at 70% already nearly on axis
+    // → wide middle, tip arrives tangentially (soft, not a cusp)
     ctx.bezierCurveTo(
-      dx * len * 0.15 - px * lhw * 0.90, dy * len * 0.15 - py * lhw * 0.90,
-      dx * len * 0.62 - px * lhw * 0.38, dy * len * 0.62 - py * lhw * 0.38,
+      dx * len * 0.14 - px * lhw,        dy * len * 0.14 - py * lhw,
+      dx * len * 0.70 - px * lhw * 0.12, dy * len * 0.70 - py * lhw * 0.12,
       dx * len,                           dy * len
     );
-    // Right edge: mirrors back from tip to base
     ctx.bezierCurveTo(
-      dx * len * 0.62 + px * rhw * 0.38, dy * len * 0.62 + py * rhw * 0.38,
-      dx * len * 0.15 + px * rhw * 0.90, dy * len * 0.15 + py * rhw * 0.90,
+      dx * len * 0.70 + px * rhw * 0.12, dy * len * 0.70 + py * rhw * 0.12,
+      dx * len * 0.14 + px * rhw,        dy * len * 0.14 + py * rhw,
       0, 0
     );
     ctx.closePath();
@@ -65,13 +65,13 @@ function drawLeaf(ctx, leaf) {
     ctx.beginPath();
     ctx.moveTo(hox, hoy);
     ctx.bezierCurveTo(
-      hox + dx * hl * 0.15 - px * hhw * 0.90, hoy + dy * hl * 0.15 - py * hhw * 0.90,
-      hox + dx * hl * 0.62 - px * hhw * 0.38,  hoy + dy * hl * 0.62 - py * hhw * 0.38,
-      hox + dx * hl,                             hoy + dy * hl
+      hox + dx * hl * 0.14 - px * hhw,        hoy + dy * hl * 0.14 - py * hhw,
+      hox + dx * hl * 0.70 - px * hhw * 0.12, hoy + dy * hl * 0.70 - py * hhw * 0.12,
+      hox + dx * hl,                            hoy + dy * hl
     );
     ctx.bezierCurveTo(
-      hox + dx * hl * 0.62 + px * hhw * 0.38,  hoy + dy * hl * 0.62 + py * hhw * 0.38,
-      hox + dx * hl * 0.15 + px * hhw * 0.90,  hoy + dy * hl * 0.15 + py * hhw * 0.90,
+      hox + dx * hl * 0.70 + px * hhw * 0.12, hoy + dy * hl * 0.70 + py * hhw * 0.12,
+      hox + dx * hl * 0.14 + px * hhw,         hoy + dy * hl * 0.14 + py * hhw,
       hox, hoy
     );
     ctx.closePath();
@@ -194,6 +194,8 @@ export function drawVineStrokeV2(x, y, col) {
   state.ctx.save();
   state.ctx.lineCap = 'round';
   state.ctx.lineJoin = 'round';
+  state.ctx.shadowBlur  = stemW * 1.8;
+  state.ctx.shadowColor = st.stemDark;
   stemPath(0, 0);
   state.ctx.lineWidth   = stemW * wob;
   state.ctx.strokeStyle = col;
@@ -225,8 +227,7 @@ export function drawVineStrokeV2(x, y, col) {
     var ca = Math.cos(ang), sa = Math.sin(ang);
 
     // Match original vine-brush.js leaf sizing
-    var sizeJitter = 1.05 + Math.random() * 0.5;
-    var leafLen = Math.max(18, state.brushSize * 1.4) * (0.78 + Math.random() * 0.55) * sizeJitter;
+    var leafLen = Math.max(24, state.brushSize * 1.9) * (0.80 + Math.random() * 0.50);
 
     var leafCol = adjacentColor(col, 25);
 
@@ -235,7 +236,7 @@ export function drawVineStrokeV2(x, y, col) {
       dx: ldx * ca - ldy * sa,
       dy: ldx * sa + ldy * ca,
       len:       leafLen,
-      squat:     0.62 + Math.random() * 0.20, // bezier paths need ~2x squat vs stamp system to look equivalent
+      squat:     0.70 + Math.random() * 0.18,
       peakT:     0.36 + Math.random() * 0.14,
       asym:      (Math.random() - 0.5) * 0.28, // subtle asymmetry only
       fillColor: leafCol,
