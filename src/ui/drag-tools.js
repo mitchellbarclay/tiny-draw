@@ -597,6 +597,264 @@ function alienFlight(dropX, dropY, ghostEl, onDone) {
   requestAnimationFrame(frame);
 }
 
+// ---- Alien beam effect ----
+
+function alienBeam(dropX, dropY, ghostEl, onDone) {
+  saveHistory();
+  state.lastStrokePoints = null;
+  var canvasRect = state.canvasArea.getBoundingClientRect();
+  var beamX = state.canvasW * (0.25 + Math.random() * 0.5);
+  var hoverY = state.canvasH * 0.1;
+  var beamBotY = state.canvasH * (0.45 + Math.random() * 0.35);
+  var beamHalfW = 35 + Math.random() * 50;
+  var beamHue = Math.floor(Math.random() * 360);
+  var phase = 'flying', phaseT = performance.now(), invertDone = false;
+  ghostEl.style.transition = 'none';
+
+  function drawBeam(ext) {
+    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+    if (ext <= 0) return;
+    var topY = hoverY + 12, botY = topY + (beamBotY - topY) * ext;
+    var topW = 6, botW = beamHalfW * ext;
+    var grad = state.ovCtx.createLinearGradient(beamX, topY, beamX, botY);
+    grad.addColorStop(0, 'rgba(255,255,255,0.85)');
+    grad.addColorStop(0.35, 'hsla(' + beamHue + ',100%,68%,0.55)');
+    grad.addColorStop(1, 'hsla(' + beamHue + ',100%,68%,0.08)');
+    state.ovCtx.beginPath();
+    state.ovCtx.moveTo(beamX - topW, topY);
+    state.ovCtx.lineTo(beamX + topW, topY);
+    state.ovCtx.lineTo(beamX + botW, botY);
+    state.ovCtx.lineTo(beamX - botW, botY);
+    state.ovCtx.closePath();
+    state.ovCtx.fillStyle = grad;
+    state.ovCtx.fill();
+    var scanY = topY + (botY - topY) * ((performance.now() * 0.0025) % 1);
+    var scanW = topW + (botW - topW) * ((scanY - topY) / (botY - topY));
+    state.ovCtx.strokeStyle = 'rgba(255,255,255,0.5)';
+    state.ovCtx.lineWidth = 2;
+    state.ovCtx.beginPath();
+    state.ovCtx.moveTo(beamX - scanW, scanY);
+    state.ovCtx.lineTo(beamX + scanW, scanY);
+    state.ovCtx.stroke();
+  }
+
+  function doInvert() {
+    var x0 = Math.max(0, Math.round((beamX - beamHalfW) * state.DPR));
+    var y0 = Math.max(0, Math.round(hoverY * state.DPR));
+    var x1 = Math.min(state.canvas.width, Math.round((beamX + beamHalfW) * state.DPR));
+    var y1 = Math.min(state.canvas.height, Math.round(beamBotY * state.DPR));
+    var pw = x1 - x0, ph = y1 - y0;
+    if (pw <= 0 || ph <= 0) return;
+    var id = state.ctx.getImageData(x0, y0, pw, ph);
+    var d = id.data;
+    for (var i = 0; i < d.length; i += 4) {
+      d[i] = 255 - d[i]; d[i + 1] = 255 - d[i + 1]; d[i + 2] = 255 - d[i + 2];
+    }
+    state.ctx.putImageData(id, x0, y0);
+  }
+
+  function frame() {
+    var now = performance.now(), elapsed = now - phaseT;
+    if (phase === 'flying') {
+      var t = Math.min(1, elapsed / 600);
+      var e = 1 - Math.pow(1 - t, 3);
+      ghostEl.style.left = (canvasRect.left + dropX + (beamX - dropX) * e) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + dropY + (hoverY - dropY) * e) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
+      if (t >= 1) { phase = 'beaming'; phaseT = now; }
+    } else if (phase === 'beaming') {
+      var ext = Math.min(1, elapsed / 450);
+      drawBeam(ext);
+      ghostEl.style.left = (canvasRect.left + beamX) + 'px';
+      ghostEl.style.top  = (canvasRect.top + hoverY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + Math.sin(now * 0.025) * 0.05) + ')';
+      if (ext >= 1 && !invertDone) { doInvert(); invertDone = true; }
+      if (elapsed > 1000) { phase = 'retracting'; phaseT = now; }
+    } else if (phase === 'retracting') {
+      var t = Math.min(1, elapsed / 280);
+      drawBeam(1 - t);
+      if (t >= 1) { state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH); phase = 'leaving'; phaseT = now; }
+    } else if (phase === 'leaving') {
+      var t = Math.min(1, elapsed / 400);
+      ghostEl.style.left = (canvasRect.left + beamX) + 'px';
+      ghostEl.style.top  = (canvasRect.top + hoverY - state.canvasH * 0.35 * t * t) + 'px';
+      ghostEl.style.opacity = String(1 - t);
+      if (t >= 1) { onDone(); return; }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---- Alien starblast effect ----
+
+function alienStarblast(dropX, dropY, ghostEl, onDone) {
+  saveHistory();
+  state.lastStrokePoints = null;
+  var canvasRect = state.canvasArea.getBoundingClientRect();
+  var nBlasts = 3 + Math.floor(Math.random() * 2);
+  var blasts = [];
+  for (var i = 0; i < nBlasts; i++) {
+    blasts.push({ x: state.canvasW * (0.12 + Math.random() * 0.76), y: state.canvasH * (0.12 + Math.random() * 0.76) });
+  }
+  var blastIdx = 0, fromX = dropX, fromY = dropY;
+  var ufoX = dropX, ufoY = dropY;
+  var phase = 'moving', phaseT = performance.now();
+  ghostEl.style.transition = 'none';
+
+  function doBlast(cx, cy) {
+    var rays = 7 + Math.floor(Math.random() * 8);
+    var maxLen = 50 + Math.random() * 90;
+    for (var i = 0; i < rays; i++) {
+      var angle = (i / rays) * Math.PI * 2 + Math.random() * 0.15;
+      var len = maxLen * (0.55 + Math.random() * 0.45);
+      var lw = 2.5 + Math.random() * 5;
+      var col = pickAlienColor();
+      state.ctx.save();
+      state.ctx.strokeStyle = col; state.ctx.lineWidth = lw; state.ctx.lineCap = 'round';
+      state.ctx.beginPath(); state.ctx.moveTo(cx, cy); state.ctx.lineTo(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len); state.ctx.stroke();
+      state.ctx.fillStyle = col;
+      state.ctx.beginPath(); state.ctx.arc(cx + Math.cos(angle) * len, cy + Math.sin(angle) * len, lw * 0.7, 0, Math.PI * 2); state.ctx.fill();
+      state.ctx.restore();
+    }
+    var cg = state.ctx.createRadialGradient(cx, cy, 0, cx, cy, maxLen * 0.18);
+    cg.addColorStop(0, 'rgba(255,255,255,0.9)'); cg.addColorStop(1, 'rgba(255,255,255,0)');
+    state.ctx.fillStyle = cg;
+    state.ctx.beginPath(); state.ctx.arc(cx, cy, maxLen * 0.18, 0, Math.PI * 2); state.ctx.fill();
+    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+    var fg = state.ovCtx.createRadialGradient(cx, cy, 0, cx, cy, maxLen * 0.45);
+    fg.addColorStop(0, 'rgba(255,255,255,0.75)'); fg.addColorStop(1, 'rgba(255,255,255,0)');
+    state.ovCtx.fillStyle = fg;
+    state.ovCtx.beginPath(); state.ovCtx.arc(cx, cy, maxLen * 0.45, 0, Math.PI * 2); state.ovCtx.fill();
+    setTimeout(function() { state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH); }, 100);
+  }
+
+  function frame() {
+    var now = performance.now(), elapsed = now - phaseT;
+    var target = blasts[blastIdx];
+    if (phase === 'moving') {
+      var t = Math.min(1, elapsed / 320);
+      var e = 1 - Math.pow(1 - t, 3);
+      ufoX = fromX + (target.x - fromX) * e;
+      ufoY = fromY + (target.y - fromY) * e;
+      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + ufoY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
+      if (t >= 1) { ufoX = target.x; ufoY = target.y; phase = 'charging'; phaseT = now; }
+    } else if (phase === 'charging') {
+      var t = Math.min(1, elapsed / 400);
+      var shakeX = t > 0.6 ? (Math.random() - 0.5) * t * 8 : 0;
+      var shakeY = t > 0.6 ? (Math.random() - 0.5) * t * 8 : 0;
+      ghostEl.style.left = (canvasRect.left + ufoX + shakeX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + ufoY + shakeY) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + t * 0.18) + ')';
+      state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+      var gr = state.ovCtx.createRadialGradient(ufoX, ufoY, 0, ufoX, ufoY, t * 40);
+      gr.addColorStop(0, 'rgba(255,255,200,0.7)'); gr.addColorStop(1, 'rgba(255,255,200,0)');
+      state.ovCtx.fillStyle = gr;
+      state.ovCtx.beginPath(); state.ovCtx.arc(ufoX, ufoY, t * 40, 0, Math.PI * 2); state.ovCtx.fill();
+      if (t >= 1) {
+        state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+        doBlast(ufoX, ufoY);
+        phase = 'recovering'; phaseT = now;
+      }
+    } else if (phase === 'recovering') {
+      var t = Math.min(1, elapsed / 200);
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + (1 - t) * 0.25) + ')';
+      if (t >= 1) {
+        blastIdx++;
+        if (blastIdx >= blasts.length) { phase = 'leaving'; phaseT = now; }
+        else { fromX = ufoX; fromY = ufoY; phase = 'moving'; phaseT = now; }
+      }
+    } else if (phase === 'leaving') {
+      var t = Math.min(1, elapsed / 380);
+      ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + ufoY - state.canvasH * 0.45 * t * t) + 'px';
+      ghostEl.style.opacity = String(1 - t);
+      if (t >= 1) { onDone(); return; }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---- Alien crop circles effect ----
+
+function alienCropCircles(dropX, dropY, ghostEl, onDone) {
+  saveHistory();
+  state.lastStrokePoints = null;
+  var canvasRect = state.canvasArea.getBoundingClientRect();
+  var cx = state.canvasW * (0.2 + Math.random() * 0.6);
+  var cy = state.canvasH * (0.2 + Math.random() * 0.6);
+  var maxR = Math.min(state.canvasW, state.canvasH) * (0.12 + Math.random() * 0.18);
+  var nRings = 3 + Math.floor(Math.random() * 3);
+  var nSpokes = 4 + Math.floor(Math.random() * 5);
+  var hoverY = cy - maxR - 30;
+  var phase = 'flying', phaseT = performance.now(), opsDrawn = 0;
+  ghostEl.style.transition = 'none';
+
+  var ops = [];
+  for (var i = nRings; i >= 1; i--) {
+    ops.push({ type: 'arc', cx: cx, cy: cy, r: maxR * (i / nRings), color: pickAlienColor(), lw: 1.5 + Math.random() * 2 });
+  }
+  for (var i = 0; i < nSpokes; i++) {
+    var ang = (i / nSpokes) * Math.PI * 2;
+    ops.push({ type: 'line',
+      x1: cx + Math.cos(ang) * maxR * 0.12, y1: cy + Math.sin(ang) * maxR * 0.12,
+      x2: cx + Math.cos(ang) * maxR,        y2: cy + Math.sin(ang) * maxR,
+      color: pickAlienColor(), lw: 1 + Math.random() * 1.5
+    });
+  }
+  ops.push({ type: 'dot', cx: cx, cy: cy, r: maxR * 0.08, color: pickAlienColor() });
+
+  function drawOp(op) {
+    state.ctx.save();
+    if (op.type === 'arc') {
+      state.ctx.strokeStyle = op.color; state.ctx.lineWidth = op.lw;
+      state.ctx.shadowColor = op.color; state.ctx.shadowBlur = 5;
+      state.ctx.beginPath(); state.ctx.arc(op.cx, op.cy, op.r, 0, Math.PI * 2); state.ctx.stroke();
+    } else if (op.type === 'line') {
+      state.ctx.strokeStyle = op.color; state.ctx.lineWidth = op.lw;
+      state.ctx.shadowColor = op.color; state.ctx.shadowBlur = 4;
+      state.ctx.lineCap = 'round';
+      state.ctx.beginPath(); state.ctx.moveTo(op.x1, op.y1); state.ctx.lineTo(op.x2, op.y2); state.ctx.stroke();
+    } else if (op.type === 'dot') {
+      state.ctx.fillStyle = op.color;
+      state.ctx.shadowColor = op.color; state.ctx.shadowBlur = 8;
+      state.ctx.beginPath(); state.ctx.arc(op.cx, op.cy, op.r, 0, Math.PI * 2); state.ctx.fill();
+    }
+    state.ctx.restore();
+  }
+
+  function frame() {
+    var now = performance.now(), elapsed = now - phaseT;
+    if (phase === 'flying') {
+      var t = Math.min(1, elapsed / 650);
+      var e = 1 - Math.pow(1 - t, 3);
+      ghostEl.style.left = (canvasRect.left + dropX + (cx  - dropX) * e) + 'px';
+      ghostEl.style.top  = (canvasRect.top  + dropY + (hoverY - dropY) * e) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%)';
+      if (t >= 1) { phase = 'drawing'; phaseT = now; }
+    } else if (phase === 'drawing') {
+      var t = Math.min(1, elapsed / 1200);
+      var target = Math.floor(t * ops.length);
+      while (opsDrawn < target) { drawOp(ops[opsDrawn]); opsDrawn++; }
+      ghostEl.style.left = (canvasRect.left + cx) + 'px';
+      ghostEl.style.top  = (canvasRect.top + hoverY + Math.sin(now * 0.004) * 5) + 'px';
+      ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + Math.sin(now * 0.008) * 0.04) + ')';
+      if (t >= 1) { phase = 'leaving'; phaseT = now; }
+    } else if (phase === 'leaving') {
+      var t = Math.min(1, elapsed / 400);
+      ghostEl.style.left = (canvasRect.left + cx) + 'px';
+      ghostEl.style.top  = (canvasRect.top + hoverY - state.canvasH * 0.4 * t * t) + 'px';
+      ghostEl.style.opacity = String(1 - t);
+      if (t >= 1) { onDone(); return; }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
 // ---- Init all drag tools ----
 
 export function initDragTools() {
@@ -614,8 +872,11 @@ export function initDragTools() {
   var tornadoTool = makeDragTool('tornado-btn', function(x, y, ghostEl) {
     return new Promise(function(resolve) { tornadoExit(ghostEl, resolve); });
   });
+  var alienEffects = [alienFlight, alienBeam, alienStarblast, alienCropCircles];
   var alienTool = makeDragTool('alien-btn', function(x, y, ghostEl) {
-    return new Promise(function(resolve) { alienFlight(x, y, ghostEl, resolve); });
+    return new Promise(function(resolve) {
+      alienEffects[Math.floor(Math.random() * alienEffects.length)](x, y, ghostEl, resolve);
+    });
   });
 
   window.addEventListener('mousemove', function(e) {
