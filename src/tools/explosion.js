@@ -45,7 +45,7 @@ function makeCirclePoly(cx, cy, r) {
 export function doBoom(cx, cy) {
   saveHistory();
   state.lastStrokePoints = null;
-  var baseR = 200 + Math.random()*60;
+  var baseR = 300 + Math.random()*80;
 
   // Jittered grid tessellation over blast area
   var cols = 8, rows = 8;
@@ -77,7 +77,7 @@ export function doBoom(cx, cy) {
       for (var k = 0; k < verts.length; k++) { fcx += verts[k].x; fcy += verts[k].y; }
       fcx /= verts.length; fcy /= verts.length;
       var dx = fcx-cx, dy = fcy-cy, dist = Math.sqrt(dx*dx+dy*dy) || 1;
-      var spd = 2 + (dist/baseR)*6 + Math.random()*2;
+      var spd = 9 - (dist/baseR)*6 + Math.random()*2;
       frags.push({
         verts: verts, cx: fcx, cy: fcy,
         vx: (dx/dist)*spd + (Math.random()-0.5)*1.5,
