@@ -48,7 +48,7 @@ export function doBoom(cx, cy) {
   var baseR = 440 + Math.random()*80;
 
   // Jittered grid tessellation over blast area
-  var cols = 8, rows = 8;
+  var cols = 13, rows = 13;
   var cellW = baseR*2/cols, cellH = baseR*2/rows;
   var jitter = cellW*0.38;
 
@@ -77,7 +77,7 @@ export function doBoom(cx, cy) {
       for (var k = 0; k < verts.length; k++) { fcx += verts[k].x; fcy += verts[k].y; }
       fcx /= verts.length; fcy /= verts.length;
       var dx = fcx-cx, dy = fcy-cy, dist = Math.sqrt(dx*dx+dy*dy) || 1;
-      var spd = 9 - (dist/baseR)*6 + Math.random()*2;
+      var spd = 18 - (dist/baseR)*10 + Math.random()*3;
       frags.push({
         verts: verts, cx: fcx, cy: fcy,
         vx: (dx/dist)*spd + (Math.random()-0.5)*1.5,
@@ -139,7 +139,7 @@ export function doBoom(cx, cy) {
     for (var i = 0; i < frags.length; i++) {
       var f = frags[i];
       if (!f.img || f.done) continue;
-      f.vx *= 0.88; f.vy *= 0.88;
+      f.vx *= 0.91; f.vy *= 0.91;
       f.x += f.vx; f.y += f.vy; f.rot += f.rotSpeed; f.frame++;
       state.ovCtx.save();
       state.ovCtx.translate(f.cx+f.x, f.cy+f.y); state.ovCtx.rotate(f.rot);
