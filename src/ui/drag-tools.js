@@ -442,6 +442,14 @@ function pickAlienColor() {
   if (state.rainbowMode) return 'hsl('+Math.floor(Math.random()*360)+',95%,55%)';
   return ALIEN_PALETTE[Math.floor(Math.random()*ALIEN_PALETTE.length)];
 }
+function colorWithAlpha(color, alpha) {
+  if (color.startsWith('#')) {
+    var r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
+    return 'rgba('+r+','+g+','+b+','+alpha.toFixed(3)+')';
+  }
+  if (color.startsWith('hsl(')) return color.replace('hsl(','hsla(').replace(')',','+alpha.toFixed(3)+')');
+  return color;
+}
 
 function buildSplashStamps(cx, cy, baseR) {
   var stamps = [];
@@ -494,19 +502,19 @@ function alienFlight(dropX, dropY, ghostEl, onDone) {
   state.lastStrokePoints = null;
   var canvasRect = state.canvasArea.getBoundingClientRect();
   var margin = 70;
-  var nWP = 6+Math.floor(Math.random()*3);
+  var nWP = 8+Math.floor(Math.random()*4);
   var wps = [];
   for (var i = 0; i < nWP; i++) {
     wps.push({
       x: margin+Math.random()*Math.max(1, state.canvasW-margin*2),
-      y: margin*0.5+Math.random()*Math.max(1, state.canvasH*0.55)
+      y: margin*0.5+Math.random()*Math.max(1, state.canvasH*0.88-margin)
     });
   }
   ghostEl.style.transition = 'none';
 
-  var leg = 0, legDur = 420;
+  var leg = 0, legDur = 360;
   var legStart = {x:dropX, y:dropY}, legEnd = wps[0];
-  var legT0 = performance.now(), lastReleaseT = 0, releaseInterval = 240;
+  var legT0 = performance.now(), lastReleaseT = 0, releaseInterval = 155;
   var drops = [], splashes = [], flightDone = false;
   // Immediate big splash right at the drop point
   var _ir = Math.max(10, Math.min(38, Math.round(state.brushSize * 0.6 + Math.random() * 8)));
@@ -629,7 +637,7 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
   // Beam points directly at where the user dropped
   var beamX = dropX;
   var beamBotY = dropY;
-  var beamHalfW = 28 + Math.random() * 38;
+  var beamHalfW = 40 + Math.random() * 50;
   var beamLen = Math.min(dropY - 5, 140 + Math.random() * 120);
   var hoverY = Math.max(8, dropY - beamLen);
   var startY = hoverY - 70;
@@ -771,11 +779,11 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
       ghostEl.style.left = (canvasRect.left + beamX) + 'px';
       ghostEl.style.top = (canvasRect.top + hoverY) + 'px';
       ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + Math.sin(now * 0.02) * 0.04) + ')';
-      if (beamExtent >= 1) {
-        if (particleTimer <= 0) { spawnParticle(); particleTimer = 0.07; }
+      if (beamExtent >= 0.7) {
+        if (particleTimer <= 0) { spawnParticle(); particleTimer = 0.055; }
         if (!invertDone && elapsed > 750) { doInvert(); invertDone = true; }
       }
-      if (elapsed > 1600) { phase = 'retracting'; phaseT = now; }
+      if (elapsed > 2000) { phase = 'retracting'; phaseT = now; }
 
     } else if (phase === 'retracting') {
       var t = Math.min(1, elapsed / 380);
@@ -845,7 +853,7 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
     if (flashAlpha > 0) {
       var fg = state.ovCtx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 55);
       fg.addColorStop(0, 'rgba(255,255,255,' + flashAlpha.toFixed(3) + ')');
-      fg.addColorStop(0.5, pulseColor.replace('hsl(', 'hsla(').replace(')', ','+( flashAlpha * 0.6).toFixed(3)+')') );
+      fg.addColorStop(0.5, colorWithAlpha(pulseColor, flashAlpha * 0.6));
       fg.addColorStop(1, 'rgba(0,0,0,0)');
       state.ovCtx.fillStyle = fg;
       state.ovCtx.beginPath(); state.ovCtx.arc(dropX, dropY, 55, 0, Math.PI * 2); state.ovCtx.fill();
@@ -887,7 +895,7 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
       if (t >= 1) { phase = 'charging'; phaseT = now; }
 
     } else if (phase === 'charging') {
-      var t = Math.min(1, elapsed / 850);
+      var t = Math.min(1, elapsed / 680);
       // Rings converge inward toward an orb below the UFO
       var orbY = hoverY + 28;
       for (var r = 0; r < 5; r++) {
@@ -908,7 +916,7 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
       if (orbR > 0.5) {
         var og = state.ovCtx.createRadialGradient(ufoX, orbY, 0, ufoX, orbY, orbR);
         og.addColorStop(0, 'rgba(255,255,255,0.95)');
-        og.addColorStop(0.45, pulseColor.replace('hsl(', 'hsla(').replace(')', ',0.7)'));
+        og.addColorStop(0.45, colorWithAlpha(pulseColor, 0.7));
         og.addColorStop(1, 'rgba(0,0,0,0)');
         state.ovCtx.fillStyle = og;
         state.ovCtx.beginPath(); state.ovCtx.arc(ufoX, orbY, orbR, 0, Math.PI * 2); state.ovCtx.fill();
@@ -927,20 +935,20 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
       ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1.18 - t * 0.18) + ')';
       if (t >= 1) {
         phase = 'pulsing'; phaseT = now;
-        // Permanent stamp at epicentre — small bright circle left on canvas
-        var cg = state.ctx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 16);
-        cg.addColorStop(0, 'rgba(255,255,255,0.9)');
-        cg.addColorStop(0.5, pulseColor.replace('hsl(', 'hsla(').replace(')', ',0.5)'));
+        // Permanent stamp at epicentre — bright circle left on canvas
+        var cg = state.ctx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 26);
+        cg.addColorStop(0, 'rgba(255,255,255,0.95)');
+        cg.addColorStop(0.4, colorWithAlpha(pulseColor, 0.75));
         cg.addColorStop(1, 'rgba(0,0,0,0)');
         state.ctx.fillStyle = cg;
-        state.ctx.beginPath(); state.ctx.arc(dropX, dropY, 16, 0, Math.PI * 2); state.ctx.fill();
+        state.ctx.beginPath(); state.ctx.arc(dropX, dropY, 26, 0, Math.PI * 2); state.ctx.fill();
       }
 
     } else if (phase === 'pulsing') {
       prevPulseR = pulseR;
       pulseR += dt * PULSE_SPEED;
-      // Permanent thin colored ring on main canvas as wave passes — "stains" the drawing
-      var stainAlpha = 0.13 * Math.max(0, 1 - pulseR / maxR);
+      // Permanent colored ring on main canvas as wave passes — "stains" the drawing
+      var stainAlpha = 0.28 * Math.max(0, 1 - pulseR / maxR);
       if (stainAlpha > 0.005 && pulseR > 1) {
         state.ctx.save();
         state.ctx.globalAlpha = stainAlpha;
@@ -977,8 +985,8 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
   var canvasRect = state.canvasArea.getBoundingClientRect();
 
   var cx = dropX, cy = dropY;
-  var maxR = Math.min(state.canvasW, state.canvasH) * (0.12 + Math.random() * 0.15);
-  var nRings = 2 + Math.floor(Math.random() * 3);
+  var maxR = Math.min(state.canvasW, state.canvasH) * (0.17 + Math.random() * 0.22);
+  var nRings = 3 + Math.floor(Math.random() * 3);
   var nSpokes = 3 + Math.floor(Math.random() * 4);
   var hoverY = Math.max(12, cy - maxR - 35);
 
@@ -1008,6 +1016,15 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
       var targetAngle = rt * Math.PI * 2;
       if (targetAngle > ringProgress[i]) {
         var r = getRingR(i);
+        // Glow pass
+        state.ctx.save();
+        state.ctx.globalAlpha = 0.22;
+        state.ctx.strokeStyle = ringColors[i]; state.ctx.lineWidth = ringWidths[i] + 10;
+        state.ctx.beginPath();
+        state.ctx.arc(cx, cy, r, ringProgress[i] - Math.PI / 2, targetAngle - Math.PI / 2);
+        state.ctx.stroke();
+        state.ctx.restore();
+        // Sharp line
         state.ctx.save();
         state.ctx.strokeStyle = ringColors[i]; state.ctx.lineWidth = ringWidths[i];
         state.ctx.beginPath();
@@ -1026,15 +1043,22 @@ function alienCropCircles(dropX, dropY, ghostEl, onDone) {
       if (st <= spokeProgress[i]) continue;
       var ang = (i / nSpokes) * Math.PI * 2;
       var innerR = maxR * 0.09, outerR = maxR;
+      var sx0 = cx + Math.cos(ang) * (innerR + (outerR - innerR) * spokeProgress[i]);
+      var sy0 = cy + Math.sin(ang) * (innerR + (outerR - innerR) * spokeProgress[i]);
+      var sx1 = cx + Math.cos(ang) * (innerR + (outerR - innerR) * st);
+      var sy1 = cy + Math.sin(ang) * (innerR + (outerR - innerR) * st);
+      // Glow pass
+      state.ctx.save();
+      state.ctx.globalAlpha = 0.22;
+      state.ctx.strokeStyle = spokeColors[i]; state.ctx.lineWidth = spokeWidths[i] + 8;
+      state.ctx.lineCap = 'round';
+      state.ctx.beginPath(); state.ctx.moveTo(sx0, sy0); state.ctx.lineTo(sx1, sy1); state.ctx.stroke();
+      state.ctx.restore();
+      // Sharp line
       state.ctx.save();
       state.ctx.strokeStyle = spokeColors[i]; state.ctx.lineWidth = spokeWidths[i];
       state.ctx.lineCap = 'round';
-      state.ctx.beginPath();
-      state.ctx.moveTo(cx + Math.cos(ang) * (innerR + (outerR - innerR) * spokeProgress[i]),
-                       cy + Math.sin(ang) * (innerR + (outerR - innerR) * spokeProgress[i]));
-      state.ctx.lineTo(cx + Math.cos(ang) * (innerR + (outerR - innerR) * st),
-                       cy + Math.sin(ang) * (innerR + (outerR - innerR) * st));
-      state.ctx.stroke();
+      state.ctx.beginPath(); state.ctx.moveTo(sx0, sy0); state.ctx.lineTo(sx1, sy1); state.ctx.stroke();
       state.ctx.restore();
       spokeProgress[i] = st;
       cursorX = cx + Math.cos(ang) * (innerR + (outerR - innerR) * st);
