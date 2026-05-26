@@ -205,18 +205,16 @@ export function finalizePipeStroke() {
   if (!state.pipeStroke) return;
   if (state.pipeAnimFrame) { cancelAnimationFrame(state.pipeAnimFrame); state.pipeAnimFrame = null; }
   var ps = state.pipeStroke; state.pipeStroke = null;
+  var mps = state.mirrorPipeStroke; state.mirrorPipeStroke = null;
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
   if (ps.liveX != null) {
     var last = ps.anchors.length>0 ? ps.anchors[ps.anchors.length-1] : {x:ps.startX,y:ps.startY};
     if (Math.hypot(ps.liveX-last.x, ps.liveY-last.y) >= 4) ps.anchors.push({x:ps.liveX,y:ps.liveY});
   }
-  if (state.mirrorPipeStroke) {
-    var mps = state.mirrorPipeStroke; state.mirrorPipeStroke = null;
-    if (mps.liveX != null) {
-      var mlast = mps.anchors.length>0 ? mps.anchors[mps.anchors.length-1] : {x:mps.startX,y:mps.startY};
-      if (Math.hypot(mps.liveX-mlast.x, mps.liveY-mlast.y) >= 4) mps.anchors.push({x:mps.liveX,y:mps.liveY});
-    }
-    drawPipeStrokeState(state.ctx, mps, null, null);
+  if (mps && mps.liveX != null) {
+    var mlast = mps.anchors.length>0 ? mps.anchors[mps.anchors.length-1] : {x:mps.startX,y:mps.startY};
+    if (Math.hypot(mps.liveX-mlast.x, mps.liveY-mlast.y) >= 4) mps.anchors.push({x:mps.liveX,y:mps.liveY});
   }
   drawPipeStrokeState(state.ctx, ps, null, null);
+  if (mps) drawPipeStrokeState(state.ctx, mps, null, null);
 }
