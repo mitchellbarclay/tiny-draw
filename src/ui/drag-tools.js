@@ -160,6 +160,7 @@ export function makeDragTool(btnId, onDrop, options) {
   var iconEl = btn.querySelector('.drag-item-icon');
   var dragging = false, ghost = null, grabDX = 0, grabDY = 0;
   var pressX = 0, pressY = 0, passedThreshold = false;
+  var locked = false;
 
   function playAnim(cls) {
     btn.classList.remove('anim-press', 'anim-release', 'anim-wiggle');
@@ -177,6 +178,8 @@ export function makeDragTool(btnId, onDrop, options) {
     return {x: r.left+r.width/2, y: r.top+r.height/2};
   }
   function start(cx, cy) {
+    if (locked) return;
+    locked = true;
     dragging = true; passedThreshold = false;
     pressX = cx; pressY = cy;
     var home = homeCenter();
@@ -228,6 +231,7 @@ export function makeDragTool(btnId, onDrop, options) {
         if (done) return; done = true;
         g.remove(); iconEl.style.visibility = '';
         playAnim(wasCancelled ? 'anim-wiggle' : 'anim-release');
+        locked = false;
       }
       g.addEventListener('transitionend', finish);
       setTimeout(finish, 500);
@@ -241,6 +245,7 @@ export function makeDragTool(btnId, onDrop, options) {
       if (options.onCancel) options.onCancel();
       g.remove(); iconEl.style.visibility = '';
       playAnim('anim-wiggle');
+      locked = false;
       showDragHint(); return;
     }
     returnHome();
