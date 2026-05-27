@@ -93,13 +93,10 @@ export function drawFlowerStroke(x, y, col) {
     var flowerBase = Math.max(18, state.brushSize * 0.95);
     state.flowerStroke = {
       lx: state.lastX, ly: state.lastY,
-      prevMidX: null, prevMidY: null,
       dir: null,
       accumDist: 0,
       flowerBase: flowerBase,
       nextSpacing: flowerBase * (0.85 + Math.random() * 0.45),
-      stemDark: shadeColor(col, -0.22, +12),
-      stemHi:   shadeColor(col, +0.18, -6),
     };
   }
 
@@ -119,35 +116,6 @@ export function drawFlowerStroke(x, y, col) {
     }
   }
 
-  // Stem — midpoint quadratic for smooth joins, world-space gradient
-  var stemW = Math.max(1.5, state.brushSize * 0.28);
-  var midX = (st.lx + x) * 0.5, midY = (st.ly + y) * 0.5;
-  var hasPrev = st.prevMidX !== null;
-
-  var hw = stemW * 0.5;
-  var stemGrad = state.ctx.createLinearGradient(midX, midY - hw, midX, midY + hw);
-  stemGrad.addColorStop(0.00, st.stemHi);
-  stemGrad.addColorStop(0.35, col);
-  stemGrad.addColorStop(1.00, st.stemDark);
-
-  state.ctx.save();
-  state.ctx.lineCap = 'round';
-  state.ctx.lineJoin = 'round';
-  state.ctx.beginPath();
-  if (hasPrev) {
-    state.ctx.moveTo(st.prevMidX, st.prevMidY);
-    state.ctx.quadraticCurveTo(st.lx, st.ly, midX, midY);
-  } else {
-    state.ctx.moveTo(st.lx, st.ly);
-    state.ctx.lineTo(midX, midY);
-  }
-  state.ctx.lineWidth   = stemW;
-  state.ctx.strokeStyle = stemGrad;
-  state.ctx.globalAlpha = 1.0;
-  state.ctx.stroke();
-  state.ctx.restore();
-
-  st.prevMidX = midX; st.prevMidY = midY;
   st.lx = x; st.ly = y;
   st.accumDist += d;
 
