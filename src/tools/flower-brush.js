@@ -90,7 +90,7 @@ function flowerOverlayFrame() {
 
 export function drawFlowerStroke(x, y, col) {
   if (!state.flowerStroke) {
-    var flowerBase = Math.max(18, state.brushSize * 0.95);
+    var flowerBase = Math.max(26, state.brushSize * 1.45);
     state.flowerStroke = {
       lx: state.lastX, ly: state.lastY,
       dir: null,
