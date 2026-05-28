@@ -163,16 +163,6 @@ function makeBucketTool() {
   var riveRef = null;
   var pendingFill = null; // {x, y} in canvas CSS coords
 
-  // Size the physical pixel buffer to the viewport so Rive has room to animate
-  function resizeCanvas() {
-    var dpr = window.devicePixelRatio || 2;
-    canvas.width  = Math.round(window.innerWidth  * dpr);
-    canvas.height = Math.round(window.innerHeight * dpr);
-    if (riveRef && riveRef.resizeDrawingSurfaceToCanvas) riveRef.resizeDrawingSurfaceToCanvas();
-  }
-  resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
-
   if (window.rive) {
     riveRef = new window.rive.Rive({
       src: 'src/rive/drag_tools.riv',
@@ -180,7 +170,7 @@ function makeBucketTool() {
       artboard: 'Fill bucket',
       stateMachines: 'State Machine 1',
       autoplay: true,
-      layout: new window.rive.Layout({ fit: window.rive.Fit.None }),
+      layout: new window.rive.Layout({ fit: window.rive.Fit.None, alignment: window.rive.Alignment.Center }),
       onLoad: function() {
         var vm = riveRef.viewModelByName('DragToolsVM');
         if (vm) {
@@ -214,24 +204,32 @@ function makeBucketTool() {
     if (pendingFill) doFillAt(pendingFill.x, pendingFill.y); // timeout fallback
   }
 
+  function toCanvas(cx, cy) {
+    var r = canvas.getBoundingClientRect();
+    return { x: cx - r.left, y: cy - r.top };
+  }
+
   function startDrag(cx, cy) {
     if (locked) return;
     locked = true; pressed = true;
     cursorX = cx; cursorY = cy;
-    if (riveRef) riveRef.pointerDown(cx, cy);
+    var c = toCanvas(cx, cy);
+    if (riveRef) riveRef.pointerDown(c.x, c.y);
   }
 
   function moveDrag(cx, cy) {
     if (!pressed) return;
     cursorX = cx; cursorY = cy;
-    if (riveRef) riveRef.pointerMove(cx, cy);
+    var c = toCanvas(cx, cy);
+    if (riveRef) riveRef.pointerMove(c.x, c.y);
   }
 
   function endDrag(cx, cy) {
     if (!pressed) return;
     pressed = false;
     cursorX = cx; cursorY = cy;
-    if (riveRef) riveRef.pointerUp(cx, cy);
+    var c = toCanvas(cx, cy);
+    if (riveRef) riveRef.pointerUp(c.x, c.y);
 
     var cr = state.canvasArea.getBoundingClientRect();
     var canvasX = cx - cr.left, canvasY = cy - cr.top;
