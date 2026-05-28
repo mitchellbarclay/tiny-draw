@@ -156,32 +156,38 @@ function makeUndoTool() {
 
 function makeBucketTool() {
   var btn = document.getElementById('bucket-btn');
+  var canvas = document.getElementById('bucket-canvas');
   var locked = false, pressed = false;
   var cursorX = 0, cursorY = 0;
-  var dragXInput = null, dragYInput = null, fillTriggerInput = null;
+  var fillTriggerInput = null;
   var riveRef = null;
-  var artboardW = 500; // updated after Rive loads
   var pendingFill = null; // {x, y} in canvas CSS coords
+
+  // Size the physical pixel buffer to the viewport so Rive has room to animate
+  function resizeCanvas() {
+    var dpr = window.devicePixelRatio || 2;
+    canvas.width  = Math.round(window.innerWidth  * dpr);
+    canvas.height = Math.round(window.innerHeight * dpr);
+    if (riveRef && riveRef.resizeDrawingSurfaceToCanvas) riveRef.resizeDrawingSurfaceToCanvas();
+  }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
 
   if (window.rive) {
     riveRef = new window.rive.Rive({
       src: 'src/rive/drag_tools.riv',
-      canvas: document.getElementById('bucket-canvas'),
+      canvas: canvas,
       artboard: 'Fill bucket',
       stateMachines: 'State Machine 1',
       autoplay: true,
-      layout: new window.rive.Layout({ fit: window.rive.Fit.Contain, alignment: window.rive.Alignment.Center }),
+      layout: new window.rive.Layout({ fit: window.rive.Fit.None }),
       onLoad: function() {
-        try { if (riveRef.artboard) artboardW = riveRef.artboard.width || artboardW; } catch(e) {}
         var vm = riveRef.viewModelByName('DragToolsVM');
         if (vm) {
           var inst = vm.defaultInstance();
           riveRef.bindViewModelInstance(inst);
-          dragXInput = inst.number('dragX');
-          dragYInput = inst.number('dragY');
           fillTriggerInput = inst.trigger('fill');
         }
-        // Also listen for a RiveEvent named 'fill' in case it's a state machine event
         riveRef.on(window.rive.EventType.RiveEvent, function(evt) {
           if (evt.data && evt.data.name === 'fill' && pendingFill) {
             doFillAt(pendingFill.x, pendingFill.y);
@@ -200,46 +206,32 @@ function makeBucketTool() {
     progressiveFloodFill(Math.round(cx * state.DPR), Math.round(cy * state.DPR), rgb, function() {});
   }
 
-  // Poll the ViewModel trigger value each frame — Rive sets it true for one frame when fired
   var pollDeadline = 0;
   function pollFill() {
     if (!pendingFill) return;
-    if (fillTriggerInput && fillTriggerInput.value) {
-      doFillAt(pendingFill.x, pendingFill.y); return;
-    }
+    if (fillTriggerInput && fillTriggerInput.value) { doFillAt(pendingFill.x, pendingFill.y); return; }
     if (performance.now() < pollDeadline) { requestAnimationFrame(pollFill); return; }
-    // Timed out — do the fill anyway so the action is never silently lost
-    if (pendingFill) doFillAt(pendingFill.x, pendingFill.y);
-  }
-
-  // Pass drag offset (screen px from button centre) into the ViewModel
-  function updateRiveDrag(cx, cy) {
-    if (!dragXInput || !dragYInput) return;
-    var r = btn.getBoundingClientRect();
-    // Scale screen-pixel offset to Rive artboard coordinates
-    var scale = artboardW / 62;
-    dragXInput.value  = (cx - (r.left + r.width  / 2)) * scale;
-    dragYInput.value  = (cy - (r.top  + r.height / 2)) * scale;
+    if (pendingFill) doFillAt(pendingFill.x, pendingFill.y); // timeout fallback
   }
 
   function startDrag(cx, cy) {
     if (locked) return;
     locked = true; pressed = true;
     cursorX = cx; cursorY = cy;
-    updateRiveDrag(cx, cy);
+    if (riveRef) riveRef.pointerDown(cx, cy);
   }
 
   function moveDrag(cx, cy) {
     if (!pressed) return;
     cursorX = cx; cursorY = cy;
-    updateRiveDrag(cx, cy);
+    if (riveRef) riveRef.pointerMove(cx, cy);
   }
 
   function endDrag(cx, cy) {
     if (!pressed) return;
     pressed = false;
     cursorX = cx; cursorY = cy;
-    updateRiveDrag(cx, cy);
+    if (riveRef) riveRef.pointerUp(cx, cy);
 
     var cr = state.canvasArea.getBoundingClientRect();
     var canvasX = cx - cr.left, canvasY = cy - cr.top;
@@ -249,10 +241,9 @@ function makeBucketTool() {
       saveHistory();
       state.lastStrokePoints = null;
       pendingFill = { x: canvasX, y: canvasY };
-      pollDeadline = performance.now() + 5000; // 5 s timeout
+      pollDeadline = performance.now() + 5000;
       requestAnimationFrame(pollFill);
     } else {
-      // Rive handles recoil — just release lock after animation
       setTimeout(function() { locked = false; }, 700);
     }
   }
