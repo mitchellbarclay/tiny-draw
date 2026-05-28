@@ -584,9 +584,14 @@ function alienFlight(dropX, dropY, ghostEl, onDone) {
       var eased = 1-Math.pow(1-t, 2.4);
       var maxDist = s.stamps.length ? s.stamps[s.stamps.length-1].dist : 0;
       var revealDist = maxDist*eased;
+      // Draw directly with arc() so the native ctx scale(2,2) renders at full 2x
+      // resolution — getBrushStamp/stampDot upscales a 1x image which looks blurry
+      state.ctx.fillStyle = s.color;
       while (s.revealed < s.stamps.length && s.stamps[s.revealed].dist <= revealDist) {
         var st = s.stamps[s.revealed];
-        stampDot(state.ctx, st.x, st.y, getBrushStamp(Math.max(1, Math.round(st.r)), s.color));
+        state.ctx.beginPath();
+        state.ctx.arc(st.x, st.y, Math.max(0.5, st.r), 0, Math.PI*2);
+        state.ctx.fill();
         s.revealed++;
       }
       if (t >= 1) splashes.splice(i, 1);
@@ -728,12 +733,77 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
     }
   }
 
-  function doTint() {
-    // Fill the beam trapezoid with a semi-transparent tint using the beam colour.
-    // Visible on white canvas (unlike channel rotation which left white unchanged).
+  function doGlitchBeam() {
     var topY = hoverY + 10, botY = beamBotY, topW = 5, botW = beamHalfW;
+    var DPR = state.DPR;
+
+    // --- Row jitter: horizontally scramble pixels inside the trapezoid ---
+    var x0 = Math.max(0, Math.floor((beamX - botW - 4) * DPR));
+    var y0 = Math.max(0, Math.floor(topY * DPR));
+    var x1 = Math.min(state.canvas.width,  Math.ceil((beamX + botW + 4) * DPR));
+    var y1 = Math.min(state.canvas.height, Math.ceil(botY * DPR));
+    var pw = x1 - x0, ph = y1 - y0;
+    if (pw > 0 && ph > 0) {
+      var id = state.ctx.getImageData(x0, y0, pw, ph);
+      var src = new Uint8ClampedArray(id.data);
+      var d = id.data;
+      for (var row = 0; row < ph; row++) {
+        var cssY = (row + y0) / DPR;
+        var tRow = (cssY - topY) / (botY - topY);
+        if (tRow < 0 || tRow > 1) continue;
+        var hw = (topW + (botW - topW) * tRow) * DPR;
+        var cx = beamX * DPR - x0;
+        var lx = Math.max(0, Math.round(cx - hw));
+        var rx = Math.min(pw, Math.round(cx + hw));
+        // jitter increases toward the bottom of the beam
+        var maxJitter = Math.round(10 * tRow + 2);
+        var jitter = Math.round((Math.random() * 2 - 1) * maxJitter);
+        for (var col = lx; col < rx; col++) {
+          var sc = Math.min(Math.max(lx, col + jitter), rx - 1);
+          var di = (row * pw + col) * 4;
+          var si = (row * pw + sc) * 4;
+          d[di]   = src[si];
+          d[di+1] = src[si+1];
+          d[di+2] = src[si+2];
+          // leave alpha
+        }
+      }
+      state.ctx.putImageData(id, x0, y0);
+    }
+
+    // --- Scan-damage lines: bright neon lines burned into the beam area ---
+    var nLines = 6 + Math.floor(Math.random() * 5);
+    for (var i = 0; i < nLines; i++) {
+      var ly = topY + Math.random() * (botY - topY);
+      var lt = (ly - topY) / (botY - topY);
+      var lhw = (topW + (botW - topW) * lt);
+      // lines don't always span the full width — random partial coverage
+      var span = 0.45 + Math.random() * 0.55;
+      var lx0 = beamX - lhw * span + (Math.random() - 0.5) * lhw * 0.3;
+      var lx1 = beamX + lhw * span + (Math.random() - 0.5) * lhw * 0.3;
+      var alpha = 0.55 + Math.random() * 0.45;
+      var lw = 0.5 + Math.random() * 1.5;
+      // glow pass
+      state.ctx.save();
+      state.ctx.globalAlpha = alpha * 0.35;
+      state.ctx.strokeStyle = 'hsl(' + beamHue + ',100%,72%)';
+      state.ctx.lineWidth = lw * 5;
+      state.ctx.lineCap = 'round';
+      state.ctx.beginPath(); state.ctx.moveTo(lx0, ly); state.ctx.lineTo(lx1, ly); state.ctx.stroke();
+      state.ctx.restore();
+      // sharp line
+      state.ctx.save();
+      state.ctx.globalAlpha = alpha;
+      state.ctx.strokeStyle = 'hsl(' + beamHue + ',100%,88%)';
+      state.ctx.lineWidth = lw;
+      state.ctx.lineCap = 'round';
+      state.ctx.beginPath(); state.ctx.moveTo(lx0, ly); state.ctx.lineTo(lx1, ly); state.ctx.stroke();
+      state.ctx.restore();
+    }
+
+    // --- Subtle tint over the whole trapezoid to tie it together ---
     state.ctx.save();
-    state.ctx.fillStyle = 'hsla(' + beamHue + ',100%,65%,0.28)';
+    state.ctx.fillStyle = 'hsla(' + beamHue + ',100%,65%,0.10)';
     state.ctx.beginPath();
     state.ctx.moveTo(beamX - topW, topY);
     state.ctx.lineTo(beamX + topW, topY);
@@ -778,7 +848,7 @@ function alienBeam(dropX, dropY, ghostEl, onDone) {
       ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1 + Math.sin(now * 0.02) * 0.04) + ')';
       if (beamExtent >= 0.7) {
         if (particleTimer <= 0) { spawnParticle(); particleTimer = 0.055; }
-        if (!invertDone && elapsed > 750) { doTint(); invertDone = true; }
+        if (!invertDone && elapsed > 750) { doGlitchBeam(); invertDone = true; }
       }
       if (elapsed > 2000) { phase = 'retracting'; phaseT = now; }
 
@@ -827,7 +897,6 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
 
   var pulseR = 0;
   var flashAlpha = 0;
-  var craterDrawn = false; // draw one clean ring mark when wave reaches ~80px
 
   var phase = 'rise';
   var phaseT = performance.now();
@@ -935,27 +1004,88 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
       ghostEl.style.transform = 'translate(-50%,-50%) scale(' + (1.18 - t * 0.18) + ')';
       if (t >= 1) {
         phase = 'pulsing'; phaseT = now;
-        // Permanent stamp at epicentre — fires from blastX/blastY (below UFO, not original drop point)
-        var cg = state.ctx.createRadialGradient(blastX, blastY, 0, blastX, blastY, 26);
+
+        // 1. Radial pixel displacement — pushes existing artwork outward from the blast
+        (function() {
+          var pushR = 115, pushStr = 24, DPR = state.DPR;
+          var bx0 = Math.max(0, Math.floor((blastX - pushR - 2) * DPR));
+          var by0 = Math.max(0, Math.floor((blastY - pushR - 2) * DPR));
+          var bx1 = Math.min(state.canvas.width,  Math.ceil((blastX + pushR + 2) * DPR));
+          var by1 = Math.min(state.canvas.height, Math.ceil((blastY + pushR + 2) * DPR));
+          var pw = bx1 - bx0, ph = by1 - by0;
+          if (pw <= 0 || ph <= 0) return;
+          var src = state.ctx.getImageData(bx0, by0, pw, ph);
+          var dst = new ImageData(pw, ph);
+          var sd = src.data, dd = dst.data;
+          var bcx = blastX * DPR - bx0, bcy = blastY * DPR - by0;
+          var maxRp = pushR * DPR, maxPush = pushStr * DPR;
+          for (var py = 0; py < ph; py++) {
+            for (var px = 0; px < pw; px++) {
+              var ddx = px - bcx, ddy = py - bcy;
+              var dist = Math.sqrt(ddx * ddx + ddy * ddy);
+              var di = (py * pw + px) * 4;
+              if (dist < 1 || dist > maxRp) {
+                dd[di] = sd[di]; dd[di+1] = sd[di+1]; dd[di+2] = sd[di+2]; dd[di+3] = sd[di+3];
+                continue;
+              }
+              // Sample from inward position (inverse warp = pull from inside)
+              var strength = (1 - dist / maxRp) * maxPush;
+              var sx = Math.min(Math.max(0, Math.round(px - (ddx / dist) * strength)), pw - 1);
+              var sy = Math.min(Math.max(0, Math.round(py - (ddy / dist) * strength)), ph - 1);
+              var si = (sy * pw + sx) * 4;
+              dd[di] = sd[si]; dd[di+1] = sd[si+1]; dd[di+2] = sd[si+2]; dd[di+3] = sd[si+3];
+            }
+          }
+          state.ctx.putImageData(dst, bx0, by0);
+        })();
+
+        // 2. Epicentre glow stamp (on top of the displaced pixels)
+        var cg = state.ctx.createRadialGradient(blastX, blastY, 0, blastX, blastY, 30);
         cg.addColorStop(0, 'rgba(255,255,255,0.95)');
         cg.addColorStop(0.4, colorWithAlpha(pulseColor, 0.75));
         cg.addColorStop(1, 'rgba(0,0,0,0)');
         state.ctx.fillStyle = cg;
-        state.ctx.beginPath(); state.ctx.arc(blastX, blastY, 26, 0, Math.PI * 2); state.ctx.fill();
+        state.ctx.beginPath(); state.ctx.arc(blastX, blastY, 30, 0, Math.PI * 2); state.ctx.fill();
+
+        // 3. Glitch rings — 2–3 broken arcs at random radii
+        var nRings = 2 + Math.floor(Math.random() * 2);
+        for (var ri = 0; ri < nRings; ri++) {
+          var rr = 55 + ri * (30 + Math.random() * 25);
+          var gapCount = 2 + Math.floor(Math.random() * 3);
+          var startAngle = Math.random() * Math.PI * 2;
+          // draw arc segments with gaps
+          for (var gi = 0; gi < gapCount; gi++) {
+            var seg = (Math.PI * 2 / gapCount) * (0.55 + Math.random() * 0.35);
+            var a0 = startAngle + (Math.PI * 2 / gapCount) * gi;
+            var a1 = a0 + seg;
+            var galpha = 0.5 + Math.random() * 0.45;
+            var glw = 1.5 + Math.random() * 2.5;
+            // glow
+            state.ctx.save();
+            state.ctx.globalAlpha = galpha * 0.3;
+            state.ctx.strokeStyle = pulseColor;
+            state.ctx.lineWidth = glw + 8;
+            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, rr, a0, a1); state.ctx.stroke();
+            state.ctx.restore();
+            // sharp
+            state.ctx.save();
+            state.ctx.globalAlpha = galpha;
+            state.ctx.strokeStyle = 'white';
+            state.ctx.lineWidth = glw * 0.6;
+            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, rr, a0, a1); state.ctx.stroke();
+            state.ctx.restore();
+            state.ctx.save();
+            state.ctx.globalAlpha = galpha * 0.8;
+            state.ctx.strokeStyle = pulseColor;
+            state.ctx.lineWidth = glw;
+            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, rr, a0, a1); state.ctx.stroke();
+            state.ctx.restore();
+          }
+        }
       }
 
     } else if (phase === 'pulsing') {
       pulseR += dt * PULSE_SPEED;
-      // Draw ONE clean crater ring when the wave front crosses ~80px — no per-frame stain accumulation
-      if (!craterDrawn && pulseR >= 80) {
-        state.ctx.save();
-        state.ctx.globalAlpha = 0.38;
-        state.ctx.strokeStyle = pulseColor;
-        state.ctx.lineWidth = 2.5;
-        state.ctx.beginPath(); state.ctx.arc(blastX, blastY, 75, 0, Math.PI * 2); state.ctx.stroke();
-        state.ctx.restore();
-        craterDrawn = true;
-      }
       ghostEl.style.left = (canvasRect.left + ufoX) + 'px';
       ghostEl.style.top  = (canvasRect.top  + hoverY) + 'px';
       ghostEl.style.transform = 'translate(-50%,-50%)';
