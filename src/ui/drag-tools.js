@@ -959,7 +959,7 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
   var WAVE_PUSH_R  = 260; // max effect radius
   var WAVE_W       = 55;  // leading-edge thickness — pixels inside this zone get pushed
   var WAVE_DECAY   = 80;  // exponential decay distance behind the ring crest
-  var WAVE_MAX     = 46;  // peak displacement at ring crest
+  var WAVE_MAX     = 50;  // peak displacement at ring crest
 
   var pulseR = 0;
   var flashAlpha = 0;
@@ -975,66 +975,88 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
   ghostEl.style.top  = (canvasRect.top  + dropY) + 'px';
   ghostEl.style.transform = 'translate(-50%,-50%)';
 
-  // Per-frame wave displacement — reads from snapData, writes to main canvas.
-  // Displacement peaks at the ring crest and decays exponentially behind it.
-  // Pixels ahead of the ring are untouched (no preview of what will happen).
+  // Per-frame wave displacement — reads purely from snapData, never reads back from
+  // the canvas (avoids GPU→CPU sync stalls).
+  //
+  // Perf: strength LUT (exp/pow only once per distance value, not per pixel);
+  // dist2 outer-circle check skips ~22% of bounding-box pixels without sqrt;
+  // early-return once all pixels have settled (innerRp >= outerRp).
   function applyWaveDisplace() {
     if (!snapData) return;
     var DPR = state.DPR;
-    var waveRp  = pulseR     * DPR;
-    var waveWp  = WAVE_W     * DPR;
-    var decayDp = WAVE_DECAY * DPR;
-    var maxPushP = WAVE_MAX  * DPR;
-    var pushRp  = WAVE_PUSH_R * DPR;
+    var waveRp   = pulseR      * DPR;
+    var waveWp   = WAVE_W      * DPR;
+    var decayDp  = WAVE_DECAY  * DPR;
+    var maxPushP = WAVE_MAX    * DPR;
+    var pushRp   = WAVE_PUSH_R * DPR;
+    var finalRp  = 220 * DPR, finalPushP = 38 * DPR;
     var bcx = blastX * DPR, bcy = blastY * DPR;
     var snapW = snapData.width, snapH = snapData.height;
     var sd = snapData.data;
 
-    // Only process the annular band the ring has reached plus the decay trail
-    var outerR = Math.min(pushRp, waveRp + waveWp);
-    var bx0 = Math.max(0, Math.floor(bcx - outerR - 2));
-    var by0 = Math.max(0, Math.floor(bcy - outerR - 2));
-    var bx1 = Math.min(state.canvas.width,  Math.ceil(bcx + outerR + 2));
-    var by1 = Math.min(state.canvas.height, Math.ceil(bcy + outerR + 2));
+    var settleRp = Math.round(4 * decayDp); // lag at which pixel is ~98% settled
+    var innerRp  = Math.max(0, waveRp - settleRp);
+    var outerRp  = Math.min(pushRp, waveRp + waveWp);
+    if (innerRp >= outerRp) return; // all pixels settled, nothing to update
+
+    var bx0 = Math.max(0, Math.floor(bcx - outerRp - 2));
+    var by0 = Math.max(0, Math.floor(bcy - outerRp - 2));
+    var bx1 = Math.min(state.canvas.width,  Math.ceil(bcx + outerRp + 2));
+    var by1 = Math.min(state.canvas.height, Math.ceil(bcy + outerRp + 2));
     var pw = bx1 - bx0, ph = by1 - by0;
     if (pw <= 0 || ph <= 0) return;
 
+    // Strength LUT: index = integer dist (physical px)
+    //  d <= innerRp  → permPart  (settled state, no wave component)
+    //  d in ring     → wave function (smooth decay from maxPush to permPart)
+    //  d > outerRp   → 0  (copy original, wave hasn't arrived)
+    var lutSize = Math.ceil(outerRp) + 2;
+    var lut = new Float32Array(lutSize);
+    for (var li = 0; li < lutSize; li++) {
+      var pp = li <= finalRp ? Math.pow(1 - li / finalRp, 0.4) * finalPushP : 0;
+      if (li <= innerRp) { lut[li] = pp; continue; }
+      var lag = waveRp - li;
+      if (lag < -waveWp || li > pushRp) { lut[li] = 0; continue; }
+      if (lag < 0) {
+        var te = (lag + waveWp) / waveWp;
+        lut[li] = te * te * maxPushP;
+      } else {
+        lut[li] = pp + (maxPushP - pp) * Math.exp(-lag / decayDp);
+      }
+    }
+
     var dst = new ImageData(pw, ph);
-    var dd = dst.data;
+    var dd  = dst.data;
+    var outerRp2 = outerRp * outerRp;
 
     for (var py = 0; py < ph; py++) {
+      var wy  = py + by0;
+      var dy0 = wy - bcy, dy2 = dy0 * dy0;
       for (var px = 0; px < pw; px++) {
-        var wx = px + bx0, wy = py + by0;
-        var ddx = wx - bcx, ddy = wy - bcy;
-        var dist = Math.sqrt(ddx * ddx + ddy * ddy);
-        var di = (py * pw + px) * 4;
+        var wx   = px + bx0;
+        var dx0  = wx - bcx;
+        var di   = (py * pw + px) * 4;
+        var dist2 = dx0 * dx0 + dy2;
 
-        var strength = 0;
-        var lag = waveRp - dist; // positive = behind the crest
-        if (dist > 0 && lag >= -waveWp && dist <= pushRp) {
-          if (lag < 0) {
-            // Leading edge: quadratic rise as wave approaches
-            var te = (lag + waveWp) / waveWp;
-            strength = te * te * maxPushP;
-          } else {
-            // Behind crest: exponential decay but floors at the permanent
-            // displacement level — pixels settle rather than snap back to zero
-            var wavePart = Math.exp(-lag / decayDp) * maxPushP;
-            var finalRp2 = 210 * DPR, finalPushP2 = 20 * DPR;
-            var permPart = dist <= finalRp2 ? Math.pow(1 - dist / finalRp2, 0.4) * finalPushP2 : 0;
-            strength = Math.max(wavePart, permPart);
-          }
+        // Outside effect circle — copy original, no sqrt needed
+        if (dist2 > outerRp2) {
+          var os = (wy * snapW + wx) * 4;
+          dd[di]=sd[os]; dd[di+1]=sd[os+1]; dd[di+2]=sd[os+2]; dd[di+3]=sd[os+3];
+          continue;
         }
 
+        var dist = Math.sqrt(dist2);
+        var dIdx = Math.min(Math.round(dist), lutSize - 1);
+        var strength = lut[dIdx];
         var srcX, srcY;
         if (strength < 0.5 || dist < 1) {
           srcX = wx; srcY = wy;
         } else {
-          srcX = Math.min(Math.max(0, Math.round(wx - (ddx / dist) * strength)), snapW - 1);
-          srcY = Math.min(Math.max(0, Math.round(wy - (ddy / dist) * strength)), snapH - 1);
+          srcX = Math.min(Math.max(0, Math.round(wx - (dx0 / dist) * strength)), snapW - 1);
+          srcY = Math.min(Math.max(0, Math.round(wy - (dy0 / dist) * strength)), snapH - 1);
         }
         var si = (srcY * snapW + srcX) * 4;
-        dd[di] = sd[si]; dd[di+1] = sd[si+1]; dd[di+2] = sd[si+2]; dd[di+3] = sd[si+3];
+        dd[di]=sd[si]; dd[di+1]=sd[si+1]; dd[di+2]=sd[si+2]; dd[di+3]=sd[si+3];
       }
     }
     state.ctx.putImageData(dst, bx0, by0);
@@ -1261,8 +1283,8 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
       }
 
       if (pulseR >= maxR) {
-        // Wave has crossed the whole canvas — burn in permanent settled displacement
-        burnFinalDisplace();
+        // Wave has crossed the whole canvas — settled state already written by
+        // the last applyWaveDisplace call, nothing more to commit
         snapData = null;
         phase = 'leaving'; phaseT = now;
       }
