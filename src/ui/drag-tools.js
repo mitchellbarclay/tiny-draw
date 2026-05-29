@@ -1269,14 +1269,49 @@ function alienPlasmaPulse(dropX, dropY, ghostEl, onDone) {
           state.ovCtx.restore();
         }
         if (ringT >= 1) {
-          for (var _si2 = 0; _si2 < gr.segs.length; _si2++) {
-            var sg2 = gr.segs[_si2];
-            state.ctx.save(); state.ctx.globalAlpha = sg2.alpha * 0.3; state.ctx.strokeStyle = pulseColor; state.ctx.lineWidth = sg2.lw + 8;
-            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); state.ctx.stroke(); state.ctx.restore();
-            state.ctx.save(); state.ctx.globalAlpha = sg2.alpha; state.ctx.strokeStyle = 'white'; state.ctx.lineWidth = sg2.lw * 0.6;
-            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); state.ctx.stroke(); state.ctx.restore();
-            state.ctx.save(); state.ctx.globalAlpha = sg2.alpha * 0.8; state.ctx.strokeStyle = pulseColor; state.ctx.lineWidth = sg2.lw;
-            state.ctx.beginPath(); state.ctx.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); state.ctx.stroke(); state.ctx.restore();
+          // Bake ring into snapData so the wave carries it as a permanent mark.
+          // Use a small bounding-box canvas (just the ring, not the full canvas)
+          // to avoid a full-resolution GPU readback stall.
+          if (snapData) {
+            var DPR2 = state.DPR;
+            var pad2 = Math.ceil((gr.segs[0] ? gr.segs[0].lw + 10 : 14));
+            var rbx0 = Math.max(0, Math.floor((blastX - gr.targetR - pad2) * DPR2));
+            var rby0 = Math.max(0, Math.floor((blastY - gr.targetR - pad2) * DPR2));
+            var rbx1 = Math.min(snapData.width,  Math.ceil((blastX + gr.targetR + pad2) * DPR2));
+            var rby1 = Math.min(snapData.height, Math.ceil((blastY + gr.targetR + pad2) * DPR2));
+            var rpw = rbx1 - rbx0, rph = rby1 - rby0;
+            if (rpw > 0 && rph > 0) {
+              var tmp = document.createElement('canvas');
+              tmp.width = rpw; tmp.height = rph;
+              var tc = tmp.getContext('2d');
+              tc.translate(-rbx0, -rby0);
+              tc.scale(DPR2, DPR2);
+              for (var _si2 = 0; _si2 < gr.segs.length; _si2++) {
+                var sg2 = gr.segs[_si2];
+                tc.save(); tc.globalAlpha = sg2.alpha * 0.3; tc.strokeStyle = pulseColor; tc.lineWidth = sg2.lw + 8;
+                tc.beginPath(); tc.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); tc.stroke(); tc.restore();
+                tc.save(); tc.globalAlpha = sg2.alpha; tc.strokeStyle = 'white'; tc.lineWidth = sg2.lw * 0.6;
+                tc.beginPath(); tc.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); tc.stroke(); tc.restore();
+                tc.save(); tc.globalAlpha = sg2.alpha * 0.8; tc.strokeStyle = pulseColor; tc.lineWidth = sg2.lw;
+                tc.beginPath(); tc.arc(blastX, blastY, gr.targetR, sg2.a0, sg2.a1); tc.stroke(); tc.restore();
+              }
+              var rd = tc.getImageData(0, 0, rpw, rph).data;
+              var sd2 = snapData.data, snapW2 = snapData.width;
+              for (var rpy = 0; rpy < rph; rpy++) {
+                for (var rpx = 0; rpx < rpw; rpx++) {
+                  var rdi = (rpy * rpw + rpx) * 4;
+                  var ba = rd[rdi + 3] / 255;
+                  if (ba > 0.01) {
+                    var sdi = ((rpy + rby0) * snapW2 + (rpx + rbx0)) * 4;
+                    var bia = 1 - ba;
+                    sd2[sdi]   = Math.round(rd[rdi]   * ba + sd2[sdi]   * bia);
+                    sd2[sdi+1] = Math.round(rd[rdi+1] * ba + sd2[sdi+1] * bia);
+                    sd2[sdi+2] = Math.round(rd[rdi+2] * ba + sd2[sdi+2] * bia);
+                    sd2[sdi+3] = Math.min(255, sd2[sdi+3] + rd[rdi+3]);
+                  }
+                }
+              }
+            }
           }
           gr.committed = true;
         }
@@ -1315,7 +1350,7 @@ export function initDragTools() {
   var tornadoTool = makeDragTool('tornado-btn', function(x, y, ghostEl) {
     return new Promise(function(resolve) { tornadoExit(ghostEl, resolve); });
   });
-  var alienEffects = [alienFlight, alienBeam, alienPlasmaPulse];
+  var alienEffects = [alienFlight, alienPlasmaPulse];
   var alienTool = makeDragTool('alien-btn', function(x, y, ghostEl) {
     return new Promise(function(resolve) {
       alienEffects[Math.floor(Math.random() * alienEffects.length)](x, y, ghostEl, resolve);
