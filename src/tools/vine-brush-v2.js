@@ -91,8 +91,60 @@ function commitLeaf(ctx, leaf) {
   ctx.restore();
 }
 
+// Draw the complete stem for a stroke state object as a single path — no per-segment
+// calls means no overlapping round caps and no rib/joint artifacts at joins.
+function drawStemPath(ctx, st) {
+  var pts = st.points;
+  if (!pts || pts.length < 2) return;
+
+  // World-space vertical gradient: lit from top regardless of stroke direction.
+  var minY = Infinity, maxY = -Infinity;
+  for (var i = 0; i < pts.length; i++) {
+    if (pts[i].y < minY) minY = pts[i].y;
+    if (pts[i].y > maxY) maxY = pts[i].y;
+  }
+  var hw = st.stemW * 0.5;
+  minY -= hw; maxY += hw;
+  if (maxY - minY < 1) maxY = minY + 1;
+
+  var grad = ctx.createLinearGradient(0, minY, 0, maxY);
+  grad.addColorStop(0.00, st.stemHi);
+  grad.addColorStop(0.35, st.col);
+  grad.addColorStop(1.00, st.stemDark);
+
+  // Midpoint-quadratic: move to pt[0], line to first midpoint, then quadratic
+  // through each control point to the next midpoint, line to last pt. Single
+  // beginPath/stroke means the canvas treats the whole thing as one shape.
+  ctx.save();
+  ctx.beginPath();
+
+  var mid0x = (pts[0].x + pts[1].x) * 0.5;
+  var mid0y = (pts[0].y + pts[1].y) * 0.5;
+  ctx.moveTo(pts[0].x, pts[0].y);
+  ctx.lineTo(mid0x, mid0y);
+
+  for (var i = 1; i < pts.length - 1; i++) {
+    var midX = (pts[i].x + pts[i + 1].x) * 0.5;
+    var midY = (pts[i].y + pts[i + 1].y) * 0.5;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+  }
+  ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+
+  ctx.lineWidth   = st.stemW;
+  ctx.strokeStyle = grad;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+  ctx.globalAlpha = 1.0;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function vineOverlayFrame() {
-  if (!state.vineLiveLeaves.length) {
+  var hasStem = (state.vineStrokeV2 && state.vineStrokeV2.points.length >= 2) ||
+                (state.mirrorVineStrokeV2 && state.mirrorVineStrokeV2.points.length >= 2);
+  var hasLeaves = state.vineLiveLeaves.length > 0 || state.vineFullLeaves.length > 0;
+
+  if (!hasStem && !hasLeaves) {
     state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
     state.vineAnimFrame = null;
     return;
@@ -101,12 +153,26 @@ function vineOverlayFrame() {
   var now = performance.now();
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
 
+  // Draw stems (single path each = no ribs)
+  if (state.vineStrokeV2) drawStemPath(state.ovCtx, state.vineStrokeV2);
+  if (state.mirrorVineStrokeV2) drawStemPath(state.ovCtx, state.mirrorVineStrokeV2);
+
+  // Draw fully-grown leaves on overlay (committed to main canvas on finalize)
+  state.vineFullLeaves.forEach(function(leaf) {
+    state.ovCtx.save();
+    state.ovCtx.translate(leaf.cx, leaf.cy);
+    state.ovCtx.globalAlpha = leaf.alpha;
+    drawLeaf(state.ovCtx, leaf);
+    state.ovCtx.restore();
+  });
+
+  // Animate growing leaves; graduate done ones to vineFullLeaves
   state.vineLiveLeaves = state.vineLiveLeaves.filter(function(leaf) {
     var t = Math.min(1, (now - leaf.born) / leaf.growDuration);
     var scale = easeOut(t);
 
     if (t >= 1) {
-      commitLeaf(state.ctx, leaf);
+      state.vineFullLeaves.push(leaf);
       return false;
     }
 
@@ -125,21 +191,27 @@ function vineOverlayFrame() {
 
 export function drawVineStrokeV2(x, y, col) {
   if (!state.vineStrokeV2) {
-    // Match original vine-brush.js sizing
     var leafBase = Math.max(22, state.brushSize * 0.95);
+    var stemW    = Math.max(2, state.brushSize * 0.38);
     state.vineStrokeV2 = {
+      points:          [{x: state.lastX, y: state.lastY}],
       lx: state.lastX, ly: state.lastY,
-      prevMidX: null, prevMidY: null, // for smooth quadratic stem
       dir: null,
-      stemDist: 0,
-      accumLeaf: 0,
-      side: 1,
-      phase: Math.random() * Math.PI * 2,
-      leafBase: leafBase,
+      stemDist:        0,
+      accumLeaf:       0,
+      side:            1,
+      phase:           Math.random() * Math.PI * 2,
+      leafBase:        leafBase,
       nextLeafSpacing: leafBase * (0.7 + Math.random() * 0.55),
-      stemDark: shadeColor(col, -0.22, +12),
-      stemHi:   shadeColor(col, +0.20, -8),
+      stemW:           stemW,
+      col:             col,
+      stemDark:        shadeColor(col, -0.22, +12),
+      stemHi:          shadeColor(col, +0.20, -8),
     };
+    // Start the rAF loop immediately so the stem appears as soon as drawing begins
+    if (!state.vineAnimFrame) {
+      state.vineAnimFrame = requestAnimationFrame(vineOverlayFrame);
+    }
   }
 
   var st = state.vineStrokeV2;
@@ -147,6 +219,8 @@ export function drawVineStrokeV2(x, y, col) {
   var d = Math.hypot(ddx, ddy);
 
   if (d > 0.3) {
+    st.points.push({x: x, y: y});
+
     var ndx = ddx / d, ndy = ddy / d;
     if (!st.dir) {
       st.dir = [ndx, ndy];
@@ -157,45 +231,6 @@ export function drawVineStrokeV2(x, y, col) {
       st.dir[0] /= m; st.dir[1] /= m;
     }
   }
-
-  // Stem — direct to main canvas
-  var stemW = Math.max(2, state.brushSize * 0.38);
-  var fullW = stemW;
-
-  // Midpoint-quadratic technique: arcs through midpoints give smooth joins
-  var midX = (st.lx + x) * 0.5, midY = (st.ly + y) * 0.5;
-  var hasPrev = st.prevMidX !== null;
-
-  function stemPath() {
-    state.ctx.beginPath();
-    if (hasPrev) {
-      state.ctx.moveTo(st.prevMidX, st.prevMidY);
-      state.ctx.quadraticCurveTo(st.lx, st.ly, midX, midY);
-    } else {
-      state.ctx.moveTo(st.lx, st.ly);
-      state.ctx.lineTo(midX, midY);
-    }
-  }
-
-  // Fixed world-space gradient: always lit from top, regardless of stroke direction.
-  // Single opaque stroke — no per-segment alpha stacking, no rib artifacts, no crinkle.
-  var hw = fullW * 0.5;
-  var stemGrad = state.ctx.createLinearGradient(midX, midY - hw, midX, midY + hw);
-  stemGrad.addColorStop(0.00, st.stemHi);
-  stemGrad.addColorStop(0.35, col);
-  stemGrad.addColorStop(1.00, st.stemDark);
-
-  state.ctx.save();
-  state.ctx.lineCap = 'round';
-  state.ctx.lineJoin = 'round';
-  stemPath();
-  state.ctx.lineWidth   = fullW;
-  state.ctx.strokeStyle = stemGrad;
-  state.ctx.globalAlpha = 1.0;
-  state.ctx.stroke();
-  state.ctx.restore();
-
-  st.prevMidX = midX; st.prevMidY = midY;
 
   st.lx = x; st.ly = y;
   st.stemDist  += d;
@@ -218,34 +253,35 @@ export function drawVineStrokeV2(x, y, col) {
     var ang = (Math.random() - 0.5) * 0.98;
     var ca = Math.cos(ang), sa = Math.sin(ang);
 
-    // Match original vine-brush.js leaf sizing
     var leafLen = Math.max(24, state.brushSize * 1.9) * (0.80 + Math.random() * 0.50);
-
     var leafCol = adjacentColor(col, 25);
 
     state.vineLiveLeaves.push({
       cx: x, cy: y,
       dx: ldx * ca - ldy * sa,
       dy: ldx * sa + ldy * ca,
-      len:       leafLen,
-      squat:     0.70 + Math.random() * 0.18,
-      peakT:     0.36 + Math.random() * 0.14,
-      asym:      (Math.random() - 0.5) * 0.28, // subtle asymmetry only
-      fillColor: leafCol,
-      rimColor:  shadeColor(leafCol, -0.25, +8),
-      alpha:     1.0,
-      born:      performance.now(),
+      len:         leafLen,
+      squat:       0.70 + Math.random() * 0.18,
+      peakT:       0.36 + Math.random() * 0.14,
+      asym:        (Math.random() - 0.5) * 0.28,
+      fillColor:   leafCol,
+      rimColor:    shadeColor(leafCol, -0.25, +8),
+      alpha:       1.0,
+      born:        performance.now(),
       growDuration: GROW_DURATION + Math.random() * 80,
     });
-
-    if (!state.vineAnimFrame) {
-      state.vineAnimFrame = requestAnimationFrame(vineOverlayFrame);
-    }
   }
 }
 
 export function finalizeVineStrokeV2() {
+  // Commit stems to main canvas first (leaves draw on top)
+  if (state.vineStrokeV2) drawStemPath(state.ctx, state.vineStrokeV2);
+  if (state.mirrorVineStrokeV2) drawStemPath(state.ctx, state.mirrorVineStrokeV2);
+
+  // Commit all leaves (fully grown and still growing) to main canvas
+  state.vineFullLeaves.forEach(function(leaf) { commitLeaf(state.ctx, leaf); });
   state.vineLiveLeaves.forEach(function(leaf) { commitLeaf(state.ctx, leaf); });
+  state.vineFullLeaves = [];
   state.vineLiveLeaves = [];
 
   if (state.vineAnimFrame) {

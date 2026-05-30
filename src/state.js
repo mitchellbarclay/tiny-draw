@@ -83,6 +83,7 @@ const state = {
   vineStrokeV2: null,
   mirrorVineStrokeV2: null,
   vineLiveLeaves: [],
+  vineFullLeaves: [],
   vineAnimFrame: null,
 
   // Pipes
