@@ -16,6 +16,7 @@ import { initToolbar, hideRectSubmenu, hideEllipseSubmenu } from './ui/toolbar.j
 import { initToolbarOverflow } from './ui/toolbar-overflow.js';
 import { initDragTools } from './ui/drag-tools.js';
 import { initDock } from './ui/dock.js';
+import { initRiveDock, setRiveDockActive } from './ui/rive-dock.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { warmupTools } from './tools/prewarm.js';
 
@@ -139,6 +140,15 @@ initToolbarOverflow();
 initDragTools();
 initDock();
 initSettingsMenu();
+initRiveDock();
+
+var _dockModeToggle = document.getElementById('debug-dock-toggle');
+if (_dockModeToggle) {
+  _dockModeToggle.addEventListener('change', function() {
+    document.body.setAttribute('data-dock', this.value);
+    setRiveDockActive(this.value === 'rive');
+  });
+}
 
 if (window.requestIdleCallback) {
   requestIdleCallback(warmupTools, { timeout: 2000 });
