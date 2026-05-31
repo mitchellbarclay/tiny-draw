@@ -45,6 +45,7 @@ function clearBrushPreview() {
 }
 
 state.canvas.addEventListener('mousedown', function(e) {
+  if (window.__riveDockCapturing) return;
   if (state.tool === 'rect') hideRectSubmenu();
   if (state.tool === 'ellipse') hideEllipseSubmenu();
   var pos = getPos(e), x = pos[0], y = pos[1];

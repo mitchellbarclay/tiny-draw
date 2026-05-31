@@ -10,6 +10,7 @@ var _toolVMs = {};
 var _active = false;
 var _undoBusy = false;
 var _bound = false;
+var _riveDragging = false;
 
 export function initRiveDock() {
   if (!window.rive) { console.warn('[rive-dock] Rive runtime not loaded'); return; }
@@ -43,20 +44,71 @@ export function initRiveDock() {
     }
   });
 
-  // Forward pointer events to Rive state machine while active
-  window.addEventListener('pointermove', function(e) {
-    if (_riveInst && _active) _riveInst.stateMachinePointerMove(e.clientX, e.clientY);
-  });
-  window.addEventListener('pointerup', function(e) {
-    if (_riveInst && _active) _riveInst.stateMachinePointerUp(e.clientX, e.clientY);
-  });
+  // Pointer event forwarding — capture phase so we can preventDefault before
+  // the drawing canvas sees the event (suppresses synthetic mousedown).
+  // When the press lands in the dock zone we block drawing; elsewhere it falls
+  // through and drawing works normally.
+  var DOCK_HIT_PX = 140; // px from bottom of viewport where dock lives
+
+  // pointerdown fires before mousedown — set a global flag in the dock zone so
+  // the canvas mousedown handler (in main.js) can bail out without drawing.
   window.addEventListener('pointerdown', function(e) {
-    if (_riveInst && _active) _riveInst.stateMachinePointerDown(e.clientX, e.clientY);
+    window.__riveDockCapturing = false;
+    if (!window.__riveActive) return;
+    if (e.clientY > window.innerHeight - DOCK_HIT_PX) {
+      _riveDragging = true;
+      window.__riveDockCapturing = true;
+    }
+    if (_riveInst) {
+      try { _riveInst.stateMachinePointerDown(e.clientX, e.clientY); } catch(err) {}
+    }
+  });
+
+  window.addEventListener('pointermove', function(e) {
+    if (_active && _riveInst) {
+      try { _riveInst.stateMachinePointerMove(e.clientX, e.clientY); } catch(err) {}
+    }
+  });
+
+  window.addEventListener('pointerup', function(e) {
+    window.__riveDockCapturing = false;
+    _riveDragging = false;
+    if (_active && _riveInst) {
+      try { _riveInst.stateMachinePointerUp(e.clientX, e.clientY); } catch(err) {}
+    }
+  });
+
+  // Touch: canvas's touchstart dispatches a synthetic mousedown, so we must
+  // intercept touchstart in capture phase for dock-area touches.
+  window.addEventListener('touchstart', function(e) {
+    if (!_active || !_riveInst || !e.touches.length) return;
+    var t = e.touches[0];
+    if (t.clientY > window.innerHeight - DOCK_HIT_PX) {
+      _riveInst.stateMachinePointerDown(t.clientX, t.clientY);
+      e.stopPropagation(); // prevents canvas touchstart from synthesising mousedown
+      _riveDragging = true;
+    }
+  }, { capture: true, passive: false });
+
+  window.addEventListener('touchmove', function(e) {
+    if (!_active || !_riveInst || !e.touches.length || !_riveDragging) return;
+    var t = e.touches[0];
+    _riveInst.stateMachinePointerMove(t.clientX, t.clientY);
+  }, { passive: false });
+
+  window.addEventListener('touchend', function(e) {
+    if (!_active || !_riveInst) return;
+    if (_riveDragging) {
+      var t = e.changedTouches[0];
+      _riveInst.stateMachinePointerUp(t.clientX, t.clientY);
+      _riveDragging = false;
+    }
   });
 }
 
 export function setRiveDockActive(active) {
   _active = active;
+  window.__riveActive = active;
 }
 
 function _sizeCanvas(canvas) {
