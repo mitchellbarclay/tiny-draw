@@ -186,12 +186,18 @@ function _hexToArgb(hex) {
 }
 
 function _fireEffect(toolName, dropX, dropY) {
+  // dropX/dropY from DockVM are in viewport CSS coordinates (Rive canvas is full-screen).
+  // Effects expect canvas-area-relative coordinates — subtract the canvas area's left offset.
+  var rect = state.canvasArea.getBoundingClientRect();
+  var cx = dropX - rect.left;
+  var cy = dropY - rect.top;
+
   if (toolName === 'undo') {
     _doUndo();
   } else if (toolName === 'fill') {
-    _doFill(dropX, dropY);
+    _doFill(cx, cy);
   } else if (toolName === 'dynamite') {
-    doBoom(dropX, dropY);
+    doBoom(cx, cy);
   } else if (toolName === 'tornado') {
     _doTornadoWipe();
   }
