@@ -10,7 +10,7 @@ var _toolVMs = {};
 var _active = false;
 var _undoBusy = false;
 var _bound = false;
-var _riveDragging = false;
+var _riveCapturing = false; // true while a dock tool drag is in progress
 
 export function initRiveDock() {
   if (!window.rive) { console.warn('[rive-dock] Rive runtime not loaded'); return; }
@@ -18,8 +18,14 @@ export function initRiveDock() {
   if (!canvas) return;
 
   _sizeCanvas(canvas);
-  window.addEventListener('resize', function() { _sizeCanvas(canvas); });
+  window.addEventListener('resize', function() {
+    _sizeCanvas(canvas);
+    if (_riveInst) _riveInst.resizeToCanvas();
+  });
 
+  // Rive sets up its own pointer listeners on the canvas via setupRiveListeners
+  // (called automatically on construction). We give the canvas pointer-events: auto
+  // when active so those listeners actually fire. Non-dock events are relayed below.
   _riveInst = new window.rive.Rive({
     src: 'src/rive/rive-dock.riv',
     canvas: canvas,
@@ -44,71 +50,53 @@ export function initRiveDock() {
     }
   });
 
-  // Pointer event forwarding — capture phase so we can preventDefault before
-  // the drawing canvas sees the event (suppresses synthetic mousedown).
-  // When the press lands in the dock zone we block drawing; elsewhere it falls
-  // through and drawing works normally.
-  var DOCK_HIT_PX = 140; // px from bottom of viewport where dock lives
+  // ── Event relay ────────────────────────────────────────────────────────────
+  // The Rive canvas is on top (z-index 200) with pointer-events: auto when active.
+  // Rive's own listeners handle dock tool interactions. For events that land outside
+  // dock tools (drawing area), we relay to the drawing canvas via synthetic events.
+  //
+  // Detection: after each pointerdown, wait one rAF so Rive can advance and fire
+  // the `pressed` trigger.on() callback (which sets _riveCapturing). If it didn't
+  // fire, this was a drawing press → relay mousedown to drawing canvas.
 
-  // pointerdown fires before mousedown — set a global flag in the dock zone so
-  // the canvas mousedown handler (in main.js) can bail out without drawing.
-  window.addEventListener('pointerdown', function(e) {
-    window.__riveDockCapturing = false;
-    if (!window.__riveActive) return;
-    if (e.clientY > window.innerHeight - DOCK_HIT_PX) {
-      _riveDragging = true;
-      window.__riveDockCapturing = true;
-    }
-    if (_riveInst) {
-      try { _riveInst.stateMachinePointerDown(e.clientX, e.clientY); } catch(err) {}
+  canvas.addEventListener('pointerdown', function(e) {
+    if (!_active) return;
+    _riveCapturing = false;
+    var ex = e.clientX, ey = e.clientY;
+    requestAnimationFrame(function() {
+      if (!_riveCapturing) {
+        state.canvas.dispatchEvent(new MouseEvent('mousedown', {
+          clientX: ex, clientY: ey, bubbles: false
+        }));
+      }
+    });
+  });
+
+  canvas.addEventListener('pointermove', function(e) {
+    if (!_active) return;
+    // Relay drawing moves. Even if _riveCapturing, Rive's own listener handles it.
+    if (state.painting && !_riveCapturing) {
+      state.canvas.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: e.clientX, clientY: e.clientY, bubbles: false
+      }));
     }
   });
 
-  window.addEventListener('pointermove', function(e) {
-    if (_active && _riveInst) {
-      try { _riveInst.stateMachinePointerMove(e.clientX, e.clientY); } catch(err) {}
-    }
-  });
-
-  window.addEventListener('pointerup', function(e) {
-    window.__riveDockCapturing = false;
-    _riveDragging = false;
-    if (_active && _riveInst) {
-      try { _riveInst.stateMachinePointerUp(e.clientX, e.clientY); } catch(err) {}
-    }
-  });
-
-  // Touch: canvas's touchstart dispatches a synthetic mousedown, so we must
-  // intercept touchstart in capture phase for dock-area touches.
-  window.addEventListener('touchstart', function(e) {
-    if (!_active || !_riveInst || !e.touches.length) return;
-    var t = e.touches[0];
-    if (t.clientY > window.innerHeight - DOCK_HIT_PX) {
-      _riveInst.stateMachinePointerDown(t.clientX, t.clientY);
-      e.stopPropagation(); // prevents canvas touchstart from synthesising mousedown
-      _riveDragging = true;
-    }
-  }, { capture: true, passive: false });
-
-  window.addEventListener('touchmove', function(e) {
-    if (!_active || !_riveInst || !e.touches.length || !_riveDragging) return;
-    var t = e.touches[0];
-    _riveInst.stateMachinePointerMove(t.clientX, t.clientY);
-  }, { passive: false });
-
-  window.addEventListener('touchend', function(e) {
-    if (!_active || !_riveInst) return;
-    if (_riveDragging) {
-      var t = e.changedTouches[0];
-      _riveInst.stateMachinePointerUp(t.clientX, t.clientY);
-      _riveDragging = false;
+  canvas.addEventListener('pointerup', function(e) {
+    if (!_active) return;
+    var wasCap = _riveCapturing;
+    _riveCapturing = false;
+    if (!wasCap) {
+      // End any drawing stroke in progress
+      window.dispatchEvent(new MouseEvent('mouseup'));
     }
   });
 }
 
 export function setRiveDockActive(active) {
   _active = active;
-  window.__riveActive = active;
+  var canvas = document.getElementById('rive-dock-canvas');
+  if (canvas) canvas.style.pointerEvents = active ? 'auto' : 'none';
 }
 
 function _sizeCanvas(canvas) {
@@ -136,11 +124,22 @@ function _bindViewModels() {
     if (!inst) { console.warn('[rive-dock] missing VM instance for:', name); return; }
     _toolVMs[name] = inst;
 
-    var trigName = effectTriggerNames[name];
-    var trig = inst.trigger(trigName);
-    if (!trig) { console.warn('[rive-dock] missing trigger:', trigName, 'on', name); return; }
+    // Set _riveCapturing when the tool is pressed (Rive Listener fires pressed trigger)
+    var pressedTrig = inst.trigger('pressed');
+    if (pressedTrig && pressedTrig.on) {
+      pressedTrig.on(function() {
+        _riveCapturing = true;
+        console.log('[rive-dock] tool pressed:', name);
+      });
+    }
+    var releaseTrig = inst.trigger('release');
+    if (releaseTrig && releaseTrig.on) {
+      releaseTrig.on(function() { _riveCapturing = false; });
+    }
 
-    // Closure to capture toolName
+    // Listen for effect output triggers
+    var effectTrig = inst.trigger(effectTriggerNames[name]);
+    if (!effectTrig) { console.warn('[rive-dock] missing trigger:', effectTriggerNames[name]); return; }
     (function(toolName, t) {
       if (typeof t.on === 'function') {
         t.on(function() {
@@ -151,13 +150,11 @@ function _bindViewModels() {
             if (px) dropX = px.value;
             if (py) dropY = py.value;
           }
-          console.log('[rive-dock] effect fired:', toolName, 'at', Math.round(dropX), Math.round(dropY));
+          console.log('[rive-dock] effect:', toolName, 'at', Math.round(dropX), Math.round(dropY));
           _fireEffect(toolName, dropX, dropY);
         });
-      } else {
-        console.warn('[rive-dock] trigger.on() not available — this Rive runtime may not support VM trigger callbacks');
       }
-    })(name, trig);
+    })(name, effectTrig);
   });
 
   _syncFillColor();
@@ -194,14 +191,13 @@ function _fireEffect(toolName, dropX, dropY) {
   } else if (toolName === 'fill') {
     _doFill(dropX, dropY);
   } else if (toolName === 'dynamite') {
-    // doBoom calls saveHistory() internally
     doBoom(dropX, dropY);
   } else if (toolName === 'tornado') {
     _doTornadoWipe();
   }
 }
 
-// ── Tornado: canvas wipe only — Rive handles the tornado ghost animation ──────
+// ── Tornado: canvas wipe only — Rive handles the ghost animation ──────────────
 
 function _doTornadoWipe() {
   saveHistory();
@@ -239,7 +235,7 @@ function _doTornadoWipe() {
   animWipe();
 }
 
-// ── Fill: immediate flood fill, no drip — Rive handles the drip animation ────
+// ── Fill: immediate flood fill — Rive handles the drip animation ──────────────
 
 function _doFill(dropX, dropY) {
   saveHistory();
@@ -251,7 +247,7 @@ function _doFill(dropX, dropY) {
   progressiveFloodFill(sx, sy, rgb, function() {});
 }
 
-// ── Undo: sparkle + canvas restore — Rive handles the undo ghost animation ───
+// ── Undo: sparkle + canvas restore — Rive handles the ghost animation ─────────
 
 function _doUndo() {
   if (_undoBusy || !state.undoSnapshot) return;
@@ -331,7 +327,7 @@ function _doUndo() {
   frame();
 }
 
-// ── Helper: fire a named trigger on a VM instance ─────────────────────────────
+// ── Helper: fire a named trigger from JS side ─────────────────────────────────
 
 function _fireTrigger(vmInst, triggerName) {
   if (!vmInst) return;
