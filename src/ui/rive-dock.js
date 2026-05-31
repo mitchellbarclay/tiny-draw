@@ -18,10 +18,13 @@ export function initRiveDock() {
   if (!canvas) return;
 
   _sizeCanvas(canvas);
-  window.addEventListener('resize', function() {
+  // ResizeObserver fires after layout is committed, so clientWidth/Height are
+  // already updated — more reliable than window.resize for reading the new size.
+  new ResizeObserver(function() {
     _sizeCanvas(canvas);
-    if (_riveInst) _riveInst.resizeToCanvas();
-  });
+    if (_riveInst) _riveInst.resizeDrawingSurfaceToCanvas();
+    _pushCanvasSize();
+  }).observe(state.canvasArea || document.getElementById('canvas-area'));
 
   // Rive sets up its own pointer listeners on the canvas via setupRiveListeners
   // (called automatically on construction). We give the canvas pointer-events: auto
@@ -135,7 +138,6 @@ function _bindViewModels() {
   _riveInst.bindViewModelInstance(_dockVM);
 
   _pushCanvasSize();
-  window.addEventListener('resize', _pushCanvasSize);
 
   var effectTriggerNames = { tornado: 'wipe', dynamite: 'explode', fill: 'fill', undo: 'undo' };
 
@@ -170,10 +172,13 @@ function _bindViewModels() {
 
 function _pushCanvasSize() {
   if (!_dockVM) return;
+  var area = state.canvasArea || document.getElementById('canvas-area');
+  var w = area ? area.clientWidth : state.canvasW;
+  var h = area ? area.clientHeight : state.canvasH;
   var cw = _dockVM.number('canvasW');
   var ch = _dockVM.number('canvasH');
-  if (cw) cw.value = state.canvasW;
-  if (ch) ch.value = state.canvasH;
+  if (cw) cw.value = w;
+  if (ch) ch.value = h;
 }
 
 function _centerDock() {
