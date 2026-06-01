@@ -16,7 +16,7 @@ import { initToolbar, hideRectSubmenu, hideEllipseSubmenu } from './ui/toolbar.j
 import { initToolbarOverflow } from './ui/toolbar-overflow.js';
 import { initDragTools } from './ui/drag-tools.js';
 import { initDock } from './ui/dock.js';
-import { initRiveDock, setRiveDockActive } from './ui/rive-dock.js';
+import { initRiveDock, setRiveDockActive, riveDockStrokeHit } from './ui/rive-dock.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { warmupTools } from './tools/prewarm.js';
 
@@ -82,6 +82,7 @@ state.canvas.addEventListener('mousemove', function(e) {
   }
   state.lastX = pos[0]; state.lastY = pos[1];
   if (window.__dockStrokeHit) window.__dockStrokeHit(e.clientX, e.clientY);
+  riveDockStrokeHit(e.clientX, e.clientY);
 });
 
 state.canvas.addEventListener('mouseup', function() {
@@ -144,6 +145,10 @@ initRiveDock();
 
 var _dockModeToggle = document.getElementById('debug-dock-toggle');
 if (_dockModeToggle) {
+  // Apply whichever option is selected on load (default: rive)
+  document.body.setAttribute('data-dock', _dockModeToggle.value);
+  setRiveDockActive(_dockModeToggle.value === 'rive');
+
   _dockModeToggle.addEventListener('change', function() {
     document.body.setAttribute('data-dock', this.value);
     setRiveDockActive(this.value === 'rive');

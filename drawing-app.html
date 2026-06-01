@@ -182,7 +182,7 @@ body[data-dock="rive"] #drag-shelf { display: none !important; }
 .sipad-step-desc { font-size: 13px; font-weight: 500; color: rgba(26,26,46,0.52); line-height: 1.4; }
 </style>
 </head>
-<body>
+<body data-dock="rive">
 
 <div id="left-rail">
   <div id="tool-pill">
@@ -255,7 +255,7 @@ body[data-dock="rive"] #drag-shelf { display: none !important; }
   </div>
   <select id="debug-dock-toggle" title="Switch dock implementation">
     <option value="legacy">Legacy Dock</option>
-    <option value="rive">Rive Dock (experimental)</option>
+    <option value="rive" selected>Rive Dock (experimental)</option>
   </select>
   <div id="drag-shelf">
   <div class="drag-item" id="undo-btn" title="Undo"><div class="drag-item-icon"><canvas id="undo-canvas" width="124" height="124"></canvas></div></div>

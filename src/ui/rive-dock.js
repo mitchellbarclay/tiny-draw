@@ -12,6 +12,10 @@ var _undoBusy = false;
 var _fillBusy = false;
 var _bound = false;
 var _riveCapturing = false; // true while a dock tool drag is in progress
+var _dockAtTop = false;
+var _lastFlipAt = 0;
+var _bottomDefault = null; // initial bottomPlacement captured after Rive loads
+var DOCK_EDGE = 18;
 
 export function initRiveDock() {
   if (!window.rive) { console.warn('[rive-dock] Rive runtime not loaded'); return; }
@@ -141,6 +145,10 @@ function _bindViewModels() {
 
   _pushCanvasSize();
 
+  // Capture initial bottomPlacement so we know the "dock at bottom" value
+  var bpInit = _dockVM.number('bottomPlacement');
+  if (bpInit) _bottomDefault = bpInit.value;
+
   var effectTriggerNames = { tornado: 'wipe', dynamite: 'explode', fill: 'fill', undo: 'undo' };
 
   ['tornado', 'dynamite', 'fill', 'undo'].forEach(function(name) {
@@ -205,6 +213,34 @@ function _hexToArgb(hex) {
   var g = parseInt(hex.slice(3, 5), 16);
   var b = parseInt(hex.slice(5, 7), 16);
   return ((0xFF << 24) | (r << 16) | (g << 8) | b) >>> 0;
+}
+
+// ── Dock vertical flip — triggered when a stroke passes through the dock area ──
+
+export function riveDockStrokeHit(cx, cy) {
+  if (!_active || !_dockVM) return;
+  if (Date.now() - _lastFlipAt < 480) return;
+  var canvas = document.getElementById('rive-dock-canvas');
+  if (!canvas) return;
+  var rect = canvas.getBoundingClientRect();
+  var px = cx - rect.left;
+  var py = cy - rect.top;
+  if (_isInDock(px, py)) _flipDockVertical();
+}
+
+function _flipDockVertical() {
+  if (!_dockVM) return;
+  _dockAtTop = !_dockAtTop;
+  _lastFlipAt = Date.now();
+  var bpProp = _dockVM.number('bottomPlacement');
+  var dhProp = _dockVM.number('dockH');
+  if (!bpProp) return;
+  if (_dockAtTop) {
+    var dh = dhProp ? dhProp.value : 80;
+    bpProp.value = state.canvasH - dh - DOCK_EDGE;
+  } else {
+    bpProp.value = _bottomDefault !== null ? _bottomDefault : DOCK_EDGE;
+  }
 }
 
 function _fireEffect(toolName, dropX, dropY) {
