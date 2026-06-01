@@ -55,13 +55,11 @@ const state = {
   boltPtsA: null,
   boltPtsB: null,
   boltMorphStart: 0,
-  boltCommits: [],
   // Mirror copies (bolt)
   mirrorBoltStroke: null,
   mirrorBoltPtsA: null,
   mirrorBoltPtsB: null,
   mirrorBoltMorphStart: 0,
-  mirrorBoltCommits: [],
 
   // Rectangle
   rectStroke: null,

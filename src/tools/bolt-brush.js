@@ -1,7 +1,6 @@
 import state from '../state.js';
 
 var BOLT_MORPH_MS = 90;
-var BOLT_COMMIT_MS = 180;
 
 function fractalBolt(x0, y0, x1, y1, depth, spread, branches) {
   var dx = x1-x0, dy = y1-y0, len = Math.hypot(dx, dy);
@@ -65,15 +64,6 @@ function boltMakeParam(bs) {
   });
 }
 
-function boltMakeParamFixed(ax, ay, x1, y1) {
-  var len = Math.hypot(x1-ax, y1-ay);
-  if (len <= 4) return null;
-  var depth = Math.min(5, 2+Math.floor(Math.log2(Math.max(1,len/10))));
-  var abs = fractalBolt(ax,ay,x1,y1,depth,len*0.72,null);
-  var dx = x1-ax, dy = y1-ay, ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
-  return abs.map(function(p) { var rx=p.x-ax,ry=p.y-ay; return {t:(rx*ux+ry*uy)/len,d:rx*nx+ry*ny}; });
-}
-
 function boltParamToAbsFixed(param, ax, ay, x1, y1) {
   var dx = x1-ax, dy = y1-ay, len = Math.hypot(dx,dy);
   if (len < 1) return param.map(function() { return {x:ax,y:ay}; });
@@ -99,34 +89,22 @@ function boltCurrentParam() {
   return param;
 }
 
+// The overlay only ever shows the live, uncommitted tail (the crackling
+// segment from the last anchor to the cursor). Committed segments are baked
+// straight to the main canvas in drawBoltStroke and never drawn here, so the
+// baked ink and the live preview can never overlap (no double stroke) and a
+// committed segment can never be left animating or dropped.
 function boltOverlayFrame() {
-  var hasMain   = state.boltStroke || state.boltCommits.length;
-  var hasMirror = state.mirrorMode && (state.mirrorBoltStroke || state.mirrorBoltCommits.length);
+  var hasMain   = !!state.boltStroke;
+  var hasMirror = state.mirrorMode && !!state.mirrorBoltStroke;
   if (!hasMain && !hasMirror) {
     state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
     state.boltPtsA = null; state.boltPtsB = null;
+    state.boltAnimFrame = null;
     return;
   }
   var now = performance.now();
   state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
-
-  state.boltCommits = state.boltCommits.filter(function(bc) {
-    var ct = Math.min(1,(now-bc.startTime)/bc.dur);
-    if (ct >= 1) {
-      // Animation has landed: bake the final shape onto the main canvas and
-      // drop it from the overlay. Baking only at this moment (not when the
-      // commit is first queued) prevents the baked + animating copies from
-      // both being visible at once.
-      drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-      return false;
-    }
-    var ce = 1-Math.pow(1-ct,3);
-    var n = Math.min(bc.fromParam.length,bc.toParam.length);
-    var cp = [];
-    for (var i = 0; i < n; i++) cp.push({t:bc.fromParam[i].t+(bc.toParam[i].t-bc.fromParam[i].t)*ce, d:bc.fromParam[i].d+(bc.toParam[i].d-bc.fromParam[i].d)*ce});
-    drawBoltParam(state.ovCtx,cp,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-    return true;
-  });
 
   if (state.boltStroke) {
     var bs = state.boltStroke;
@@ -145,64 +123,50 @@ function boltOverlayFrame() {
     }
   }
 
-  if (hasMirror) {
-    state.mirrorBoltCommits = state.mirrorBoltCommits.filter(function(bc) {
-      var ct = Math.min(1,(now-bc.startTime)/bc.dur);
-      if (ct >= 1) {
-        drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-        return false;
-      }
-      var ce = 1-Math.pow(1-ct,3);
-      var n = Math.min(bc.fromParam.length,bc.toParam.length);
-      var cp = [];
-      for (var i = 0; i < n; i++) cp.push({t:bc.fromParam[i].t+(bc.toParam[i].t-bc.fromParam[i].t)*ce, d:bc.fromParam[i].d+(bc.toParam[i].d-bc.fromParam[i].d)*ce});
-      drawBoltParam(state.ovCtx,cp,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-      return true;
-    });
-    if (state.mirrorBoltStroke) {
-      var mbs = state.mirrorBoltStroke;
-      if (!state.mirrorBoltPtsA) {
-        state.mirrorBoltPtsA = boltMakeParam(mbs); state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now;
-      }
-      var mt = (now-state.mirrorBoltMorphStart)/BOLT_MORPH_MS;
-      if (mt >= 1) { state.mirrorBoltPtsA = state.mirrorBoltPtsB; state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now; mt = 0; }
-      var mEase = mt*mt*(3-2*mt);
-      if (state.mirrorBoltPtsA && state.mirrorBoltPtsB) {
-        var mn2 = Math.min(state.mirrorBoltPtsA.length,state.mirrorBoltPtsB.length);
-        var mParam = [];
-        for (var mj = 0; mj < mn2; mj++)
-          mParam.push({t:state.mirrorBoltPtsA[mj].t+(state.mirrorBoltPtsB[mj].t-state.mirrorBoltPtsA[mj].t)*mEase, d:state.mirrorBoltPtsA[mj].d+(state.mirrorBoltPtsB[mj].d-state.mirrorBoltPtsA[mj].d)*mEase});
-        drawBoltParam(state.ovCtx,mParam,mbs.anchorX,mbs.anchorY,mbs.curX,mbs.curY,mbs.col);
-      }
+  if (hasMirror && state.mirrorBoltStroke) {
+    var mbs = state.mirrorBoltStroke;
+    if (!state.mirrorBoltPtsA) {
+      state.mirrorBoltPtsA = boltMakeParam(mbs); state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now;
+    }
+    var mt = (now-state.mirrorBoltMorphStart)/BOLT_MORPH_MS;
+    if (mt >= 1) { state.mirrorBoltPtsA = state.mirrorBoltPtsB; state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now; mt = 0; }
+    var mEase = mt*mt*(3-2*mt);
+    if (state.mirrorBoltPtsA && state.mirrorBoltPtsB) {
+      var mn2 = Math.min(state.mirrorBoltPtsA.length,state.mirrorBoltPtsB.length);
+      var mParam = [];
+      for (var mj = 0; mj < mn2; mj++)
+        mParam.push({t:state.mirrorBoltPtsA[mj].t+(state.mirrorBoltPtsB[mj].t-state.mirrorBoltPtsA[mj].t)*mEase, d:state.mirrorBoltPtsA[mj].d+(state.mirrorBoltPtsB[mj].d-state.mirrorBoltPtsA[mj].d)*mEase});
+      drawBoltParam(state.ovCtx,mParam,mbs.anchorX,mbs.anchorY,mbs.curX,mbs.curY,mbs.col);
     }
   }
 
   state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
 }
 
+// Bake the segment anchor->(x,y) onto the main canvas. Uses the shape currently
+// shown on the overlay (boltCurrentParam) so the hand-off from live preview to
+// baked ink is seamless; falls back to a fresh fractal if no live shape exists.
+function bakeBoltSegment(ax, ay, x, y, col) {
+  var cur = boltCurrentParam();
+  if (cur) drawBoltParam(state.ctx, cur, ax, ay, x, y, col);
+  else bakeBolt(ax, ay, x, y, col);
+}
+
 export function drawBoltStroke(x, y, col) {
   if (!state.boltStroke) {
     state.boltStroke = {anchorX:state.lastX,anchorY:state.lastY,accum:0,lx:state.lastX,ly:state.lastY,curX:x,curY:y,col:col,accumStart:performance.now()};
-    state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
   }
+  // One shared animation loop drives both the main and mirror live tails; the
+  // guard keeps the mirror pass from starting a second, uncancellable loop.
+  if (!state.boltAnimFrame) state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
   var bs = state.boltStroke;
   bs.col = col; bs.curX = x; bs.curY = y;
   bs.accum += Math.hypot(x-bs.lx, y-bs.ly);
   bs.lx = x; bs.ly = y;
   var threshold = Math.max(100, state.brushSize*7);
   if (bs.accum >= threshold) {
-    var elapsed = performance.now() - bs.accumStart;
-    var commitDur = Math.min(BOLT_COMMIT_MS, Math.max(30, elapsed*0.5));
-    var fromParam = boltCurrentParam();
-    var toParam = boltMakeParamFixed(bs.anchorX, bs.anchorY, x, y);
-    if (fromParam && toParam) {
-      // Queue the morph on the overlay; it gets baked to the main canvas only
-      // once the animation lands (handled in boltOverlayFrame), so the baked
-      // and animating copies are never visible simultaneously.
-      state.boltCommits.push({fromParam:fromParam,toParam:toParam,ax:bs.anchorX,ay:bs.anchorY,x1:x,y1:y,col:col,startTime:performance.now(),dur:commitDur});
-    } else {
-      bakeBolt(bs.anchorX, bs.anchorY, x, y, col);
-    }
+    // Commit the segment straight to the main canvas — gapless and never lost.
+    bakeBoltSegment(bs.anchorX, bs.anchorY, x, y, col);
     bs.anchorX = x; bs.anchorY = y; bs.accum = 0; bs.accumStart = performance.now();
     state.boltPtsA = null; state.boltPtsB = null;
   }
@@ -211,18 +175,13 @@ export function drawBoltStroke(x, y, col) {
 export function finalizeBoltStroke() {
   if (!state.boltStroke) return;
   var bs = state.boltStroke;
-  // Flush any still-animating commits straight to their final baked shape so
-  // nothing is lost when the stroke ends before an animation lands.
-  state.boltCommits.forEach(function(bc) { drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col); });
-  state.boltCommits = [];
   if (Math.hypot(bs.curX-bs.anchorX, bs.curY-bs.anchorY) > 4)
-    bakeBolt(bs.anchorX, bs.anchorY, bs.curX, bs.curY, bs.col);
+    bakeBoltSegment(bs.anchorX, bs.anchorY, bs.curX, bs.curY, bs.col);
   if (state.mirrorBoltStroke) {
     var mbs = state.mirrorBoltStroke;
-    state.mirrorBoltCommits.forEach(function(bc) { drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col); });
     if (Math.hypot(mbs.curX-mbs.anchorX, mbs.curY-mbs.anchorY) > 4)
       bakeBolt(mbs.anchorX, mbs.anchorY, mbs.curX, mbs.curY, mbs.col);
-    state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null; state.mirrorBoltCommits = [];
+    state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null;
   }
   if (state.boltAnimFrame) { cancelAnimationFrame(state.boltAnimFrame); state.boltAnimFrame = null; }
   state.boltStroke = null; state.boltPtsA = null; state.boltPtsB = null;

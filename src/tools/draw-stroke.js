@@ -41,11 +41,11 @@ export function drawStroke(x, y) {
   } else if (state.tool === 'bolt') {
     drawBoltStroke(x, y, c);
     if (state.mirrorMode) {
-      var _savLastX=state.lastX, _savBS=state.boltStroke, _savPA=state.boltPtsA, _savPB=state.boltPtsB, _savMS=state.boltMorphStart, _savBC=state.boltCommits;
-      state.lastX=state.canvasW-_savLastX; state.boltStroke=state.mirrorBoltStroke; state.boltPtsA=state.mirrorBoltPtsA; state.boltPtsB=state.mirrorBoltPtsB; state.boltMorphStart=state.mirrorBoltMorphStart; state.boltCommits=state.mirrorBoltCommits;
+      var _savLastX=state.lastX, _savBS=state.boltStroke, _savPA=state.boltPtsA, _savPB=state.boltPtsB, _savMS=state.boltMorphStart;
+      state.lastX=state.canvasW-_savLastX; state.boltStroke=state.mirrorBoltStroke; state.boltPtsA=state.mirrorBoltPtsA; state.boltPtsB=state.mirrorBoltPtsB; state.boltMorphStart=state.mirrorBoltMorphStart;
       drawBoltStroke(state.canvasW-x, y, c);
-      state.mirrorBoltStroke=state.boltStroke; state.mirrorBoltPtsA=state.boltPtsA; state.mirrorBoltPtsB=state.boltPtsB; state.mirrorBoltMorphStart=state.boltMorphStart; state.mirrorBoltCommits=state.boltCommits;
-      state.lastX=_savLastX; state.boltStroke=_savBS; state.boltPtsA=_savPA; state.boltPtsB=_savPB; state.boltMorphStart=_savMS; state.boltCommits=_savBC;
+      state.mirrorBoltStroke=state.boltStroke; state.mirrorBoltPtsA=state.boltPtsA; state.mirrorBoltPtsB=state.boltPtsB; state.mirrorBoltMorphStart=state.boltMorphStart;
+      state.lastX=_savLastX; state.boltStroke=_savBS; state.boltPtsA=_savPA; state.boltPtsB=_savPB; state.boltMorphStart=_savMS;
     }
   } else if (state.tool === 'vine') {
     drawVineStrokeV2(x, y, c);
