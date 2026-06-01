@@ -257,24 +257,48 @@ function _fireEffect(toolName, dropX, dropY) {
   }
 }
 
-// ── Tornado: straight vertical wipe — Rive handles the ghost animation ───────
+// ── Tornado: wipe synced to Rive's wipePosition ───────────────────────────────
+// The tornado is a nested artboard (1180 × 820 design px) with cover/leaf
+// fitting, so it scales to fill the canvas and is centered. wipePosition is
+// in artboard design-space, so we must account for the cover scale and the
+// horizontal offset before converting to canvas pixels.
+//
+//   scale   = max(canvasW / 1180, canvasH / 820)
+//   offsetX = (canvasW − 1180 * scale) / 2
+//   canvasX = offsetX + wipePosition * scale   → clamped to [0, canvasW]
+
+var TORNADO_ARTBOARD_W = 1180;
+var TORNADO_ARTBOARD_H = 820;
 
 function _doTornadoWipe() {
   saveHistory();
   state.lastStrokePoints = null;
   var w = state.canvasW, h = state.canvasH;
-  var totalFrames = 130, frame = 0;
+  var maxClearX = 0; // one-way ratchet — cleared region only grows
 
   function animWipe() {
-    var p = frame / totalFrames;
-    state.ctx.fillStyle = state.BG_CSS;
-    state.ctx.fillRect(0, 0, Math.ceil(w * p), h);
-    frame++;
-    if (frame < totalFrames) {
-      requestAnimationFrame(animWipe);
-    } else {
+    var pos = 0;
+    if (_dockVM) {
+      var posProp = _dockVM.number('wipePosition');
+      if (posProp) pos = posProp.value;
+    }
+
+    var scale = Math.max(w / TORNADO_ARTBOARD_W, h / TORNADO_ARTBOARD_H);
+    var offsetX = (w - TORNADO_ARTBOARD_W * scale) / 2;
+    var clearX = Math.ceil(offsetX + pos * scale);
+    clearX = Math.max(0, Math.min(w, clearX));
+
+    if (clearX > maxClearX) {
+      state.ctx.fillStyle = state.BG_CSS;
+      state.ctx.fillRect(maxClearX, 0, clearX - maxClearX, h);
+      maxClearX = clearX;
+    }
+
+    if (maxClearX >= w) {
+      // Canvas fully cleared — final fill guarantees no stray pixels
       state.ctx.fillRect(0, 0, w, h);
-      _fireTrigger(_toolVMs.tornado, 'endWipe');
+    } else {
+      requestAnimationFrame(animWipe);
     }
   }
   animWipe();
