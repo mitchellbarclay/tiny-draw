@@ -112,12 +112,20 @@ function boltOverlayFrame() {
 
   state.boltCommits = state.boltCommits.filter(function(bc) {
     var ct = Math.min(1,(now-bc.startTime)/bc.dur);
+    if (ct >= 1) {
+      // Animation has landed: bake the final shape onto the main canvas and
+      // drop it from the overlay. Baking only at this moment (not when the
+      // commit is first queued) prevents the baked + animating copies from
+      // both being visible at once.
+      drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
+      return false;
+    }
     var ce = 1-Math.pow(1-ct,3);
     var n = Math.min(bc.fromParam.length,bc.toParam.length);
     var cp = [];
     for (var i = 0; i < n; i++) cp.push({t:bc.fromParam[i].t+(bc.toParam[i].t-bc.fromParam[i].t)*ce, d:bc.fromParam[i].d+(bc.toParam[i].d-bc.fromParam[i].d)*ce});
     drawBoltParam(state.ovCtx,cp,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-    return ct < 1;
+    return true;
   });
 
   if (state.boltStroke) {
@@ -140,12 +148,16 @@ function boltOverlayFrame() {
   if (hasMirror) {
     state.mirrorBoltCommits = state.mirrorBoltCommits.filter(function(bc) {
       var ct = Math.min(1,(now-bc.startTime)/bc.dur);
+      if (ct >= 1) {
+        drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
+        return false;
+      }
       var ce = 1-Math.pow(1-ct,3);
       var n = Math.min(bc.fromParam.length,bc.toParam.length);
       var cp = [];
       for (var i = 0; i < n; i++) cp.push({t:bc.fromParam[i].t+(bc.toParam[i].t-bc.fromParam[i].t)*ce, d:bc.fromParam[i].d+(bc.toParam[i].d-bc.fromParam[i].d)*ce});
       drawBoltParam(state.ovCtx,cp,bc.ax,bc.ay,bc.x1,bc.y1,bc.col);
-      return ct < 1;
+      return true;
     });
     if (state.mirrorBoltStroke) {
       var mbs = state.mirrorBoltStroke;
@@ -183,16 +195,13 @@ export function drawBoltStroke(x, y, col) {
     var commitDur = Math.min(BOLT_COMMIT_MS, Math.max(30, elapsed*0.5));
     var fromParam = boltCurrentParam();
     var toParam = boltMakeParamFixed(bs.anchorX, bs.anchorY, x, y);
-    if (toParam) {
-      var finalPts = boltParamToAbsFixed(toParam, bs.anchorX, bs.anchorY, x, y);
-      var w = Math.max(2, state.brushSize*0.70);
-      strokeBoltGlow(state.ctx, finalPts, col, w);
-      drawBoltPath(state.ctx, finalPts, '#fff', Math.max(1,w*0.40), 0.95);
+    if (fromParam && toParam) {
+      // Queue the morph on the overlay; it gets baked to the main canvas only
+      // once the animation lands (handled in boltOverlayFrame), so the baked
+      // and animating copies are never visible simultaneously.
+      state.boltCommits.push({fromParam:fromParam,toParam:toParam,ax:bs.anchorX,ay:bs.anchorY,x1:x,y1:y,col:col,startTime:performance.now(),dur:commitDur});
     } else {
       bakeBolt(bs.anchorX, bs.anchorY, x, y, col);
-    }
-    if (fromParam && toParam) {
-      state.boltCommits.push({fromParam:fromParam,toParam:toParam,ax:bs.anchorX,ay:bs.anchorY,x1:x,y1:y,col:col,startTime:performance.now(),dur:commitDur});
     }
     bs.anchorX = x; bs.anchorY = y; bs.accum = 0; bs.accumStart = performance.now();
     state.boltPtsA = null; state.boltPtsB = null;
@@ -202,11 +211,15 @@ export function drawBoltStroke(x, y, col) {
 export function finalizeBoltStroke() {
   if (!state.boltStroke) return;
   var bs = state.boltStroke;
+  // Flush any still-animating commits straight to their final baked shape so
+  // nothing is lost when the stroke ends before an animation lands.
+  state.boltCommits.forEach(function(bc) { drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col); });
   state.boltCommits = [];
   if (Math.hypot(bs.curX-bs.anchorX, bs.curY-bs.anchorY) > 4)
     bakeBolt(bs.anchorX, bs.anchorY, bs.curX, bs.curY, bs.col);
   if (state.mirrorBoltStroke) {
     var mbs = state.mirrorBoltStroke;
+    state.mirrorBoltCommits.forEach(function(bc) { drawBoltParam(state.ctx,bc.toParam,bc.ax,bc.ay,bc.x1,bc.y1,bc.col); });
     if (Math.hypot(mbs.curX-mbs.anchorX, mbs.curY-mbs.anchorY) > 4)
       bakeBolt(mbs.anchorX, mbs.anchorY, mbs.curX, mbs.curY, mbs.col);
     state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null; state.mirrorBoltCommits = [];
