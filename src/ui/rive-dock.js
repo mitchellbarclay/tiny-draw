@@ -9,6 +9,7 @@ var _dockVM = null;
 var _toolVMs = {};
 var _active = false;
 var _undoBusy = false;
+var _fillBusy = false;
 var _bound = false;
 var _riveCapturing = false; // true while a dock tool drag is in progress
 
@@ -246,13 +247,17 @@ function _doTornadoWipe() {
 // ── Fill: immediate flood fill — Rive handles the drip animation ──────────────
 
 function _doFill(dropX, dropY) {
+  if (_fillBusy) return;
+  _fillBusy = true;
   saveHistory();
   state.lastStrokePoints = null;
   var fc = state.rainbowMode ? 'hsl(' + Math.floor(Math.random() * 360) + ',100%,50%)' : state.color;
   var rgb = fc.indexOf('hsl') === 0 ? hslToRgb(fc) : hexToRgb(fc);
   var sx = Math.round(dropX * state.DPR);
   var sy = Math.round(dropY * state.DPR);
-  progressiveFloodFill(sx, sy, rgb, function() {});
+  progressiveFloodFill(sx, sy, rgb, function() {
+    _fillBusy = false;
+  });
 }
 
 // ── Undo: delegates to undoMagic from history.js ─────────────────────────────
