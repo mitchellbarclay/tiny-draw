@@ -49,17 +49,11 @@ const state = {
   splatterParticles: [],
   splatterAnimId: null,
 
-  // Lightning bolt
+  // Lightning bolt — each stroke is a self-contained recorded path object
   boltStroke: null,
   boltAnimFrame: null,
-  boltPtsA: null,
-  boltPtsB: null,
-  boltMorphStart: 0,
-  // Mirror copies (bolt)
+  // Mirror copy (bolt)
   mirrorBoltStroke: null,
-  mirrorBoltPtsA: null,
-  mirrorBoltPtsB: null,
-  mirrorBoltMorphStart: 0,
 
   // Rectangle
   rectStroke: null,

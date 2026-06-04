@@ -51,7 +51,7 @@ state.canvas.addEventListener('mousedown', function(e) {
   saveHistory();
   state.mirrorVineStrokeV2 = null;
   state.mirrorFlowerStroke = null;
-  state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null; state.mirrorBoltCommits = [];
+  state.mirrorBoltStroke = null;
   state.mirrorPipeStroke = null;
   state.lastStrokePoints = [{x:x, y:y}];
   if (state.mirrorMode) state.lastStrokePoints.push({x: state.canvasW-x, y: y});
@@ -120,6 +120,9 @@ window.addEventListener('mousemove', function(e) {
 });
 window.addEventListener('mouseup', function() {
   state.painting = false;
+  // Safety net: a release anywhere ends the bolt stroke, so its live tail can
+  // never be orphaned and left crackling on the overlay (idempotent if idle).
+  finalizeBoltStroke();
   onSliderRelease();
   onColorRelease();
 });

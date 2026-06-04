@@ -1,7 +1,18 @@
 import state from '../state.js';
 
-var BOLT_MORPH_MS = 90;
+// --- Tuning -----------------------------------------------------------------
+// A bolt stroke is now one continuous recorded path. Each point carries a
+// timestamp; once a point is older than LIFE_MS it "expires" out of the live
+// animated tail and bakes into permanent ink. This means:
+//   * the live tail follows every recorded point (no chord-gap on fast flicks),
+//   * the animation settles on its own a moment after you stop moving,
+//   * and it always bakes fully on release (never crackles forever).
+var LIFE_MS = 240;        // how long a point stays in the live, animated tail
+var CRACKLE_MS = 60;      // regenerate the live fractal at most this often (flicker)
 
+function bakeMinLen() { return Math.max(70, state.brushSize * 6); }
+
+// --- Fractal + drawing primitives -------------------------------------------
 function fractalBolt(x0, y0, x1, y1, depth, spread, branches) {
   var dx = x1-x0, dy = y1-y0, len = Math.hypot(dx, dy);
   if (depth <= 0 || len < 3) return [{x:x0,y:y0},{x:x1,y:y1}];
@@ -40,150 +51,120 @@ function strokeBoltGlow(targetCtx, pts, col, w) {
   targetCtx.stroke(); targetCtx.restore();
 }
 
-function bakeBolt(x0, y0, x1, y1, col) {
-  var len = Math.hypot(x1-x0, y1-y0);
-  if (len < 2) return;
-  var depth = Math.min(5, 2+Math.floor(Math.log2(Math.max(1,len/10))));
-  var pts = fractalBolt(x0, y0, x1, y1, depth, len*0.72, null);
+// Build one fractal lightning that threads through every point of a polyline.
+// Each straight segment is independently subdivided, so the bolt bends with the
+// recorded path instead of cutting a straight chord across fast movement.
+function boltAcrossPath(pts) {
+  if (!pts || pts.length < 2) return null;
+  var out = [{x:pts[0].x, y:pts[0].y}];
+  for (var i = 1; i < pts.length; i++) {
+    var a = pts[i-1], b = pts[i];
+    var len = Math.hypot(b.x-a.x, b.y-a.y);
+    if (len < 3) { out.push({x:b.x, y:b.y}); continue; }
+    var depth = Math.min(5, 2+Math.floor(Math.log2(Math.max(1, len/10))));
+    var seg = fractalBolt(a.x, a.y, b.x, b.y, depth, len*0.72, null);
+    out = out.concat(seg.slice(1)); // slice(1) drops the duplicated shared start point
+  }
+  return out;
+}
+
+function renderBolt(targetCtx, jaggedPts, col) {
+  if (!jaggedPts || jaggedPts.length < 2) return;
   var w = Math.max(2, state.brushSize*0.70);
-  strokeBoltGlow(state.ctx, pts, col, w);
-  drawBoltPath(state.ctx, pts, '#fff', Math.max(1,w*0.40), 0.95);
+  strokeBoltGlow(targetCtx, jaggedPts, col, w);
+  drawBoltPath(targetCtx, jaggedPts, '#fff', Math.max(1, w*0.40), 0.95);
 }
 
-function boltMakeParam(bs) {
-  var ax = bs.anchorX, ay = bs.anchorY, cx = bs.curX, cy = bs.curY;
-  var len = Math.hypot(cx-ax, cy-ay);
-  if (len <= 4) return null;
-  var depth = Math.min(5, 2+Math.floor(Math.log2(Math.max(1,len/10))));
-  var abs = fractalBolt(ax,ay,cx,cy,depth,len*0.72,null);
-  var dx = cx-ax, dy = cy-ay;
-  var ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
-  return abs.map(function(p) {
-    var rx = p.x-ax, ry = p.y-ay;
-    return {t:(rx*ux+ry*uy)/len, d:rx*nx+ry*ny};
-  });
+// Bake the polyline chunk straight onto the main canvas (permanent ink).
+function bakePath(pts, col) {
+  renderBolt(state.ctx, boltAcrossPath(pts), col);
 }
 
-function boltParamToAbsFixed(param, ax, ay, x1, y1) {
-  var dx = x1-ax, dy = y1-ay, len = Math.hypot(dx,dy);
-  if (len < 1) return param.map(function() { return {x:ax,y:ay}; });
-  var nx = -dy/len, ny = dx/len;
-  return param.map(function(p) { return {x:ax+p.t*dx+p.d*nx, y:ay+p.t*dy+p.d*ny}; });
+// --- Per-stroke processing --------------------------------------------------
+function pathLen(pts, from, to) {
+  var L = 0;
+  for (var j = from; j < to; j++) L += Math.hypot(pts[j+1].x-pts[j].x, pts[j+1].y-pts[j].y);
+  return L;
 }
 
-function drawBoltParam(targetCtx, param, ax, ay, x1, y1, col) {
-  var pts = boltParamToAbsFixed(param, ax, ay, x1, y1);
-  var w = Math.max(2, state.brushSize*0.70);
-  strokeBoltGlow(targetCtx, pts, col, w);
-  drawBoltPath(targetCtx, pts, '#fff', Math.max(1,w*0.40), 0.95);
+// Advance baking for one stroke (main or mirror) and draw its live tail onto
+// the overlay. Returns nothing; mutates bs.bakedThrough and the overlay.
+function processStroke(bs, now) {
+  var n = bs.pts.length;
+  if (n < 2) return;
+
+  // How far has the expired (older than LIFE_MS) region grown past what we've
+  // already baked? expireIdx is the last contiguous expired index.
+  var expireIdx = bs.bakedThrough;
+  for (var k = bs.bakedThrough+1; k < n; k++) {
+    if (now - bs.pts[k].t > LIFE_MS) expireIdx = k; else break;
+  }
+  if (expireIdx > bs.bakedThrough) {
+    var regionLen = pathLen(bs.pts, bs.bakedThrough, expireIdx);
+    var idle = now - bs.pts[n-1].t; // time since the cursor last moved
+    // Bake in chunks of ~bakeMinLen to keep seams sparse during fast drawing,
+    // but if the cursor has gone idle, flush whatever has expired so the bolt
+    // settles into permanent ink instead of hovering on the overlay.
+    if (regionLen >= bakeMinLen() || idle > LIFE_MS) {
+      // Include the shared boundary point so baked ink joins the live tail.
+      bakePath(bs.pts.slice(bs.bakedThrough, expireIdx+1), bs.col);
+      bs.bakedThrough = expireIdx;
+    }
+  }
+
+  // Live, crackling tail: everything not yet baked. Regenerate the jagged shape
+  // on the CRACKLE_MS cadence so it flickers like real lightning rather than
+  // strobing every frame.
+  var tail = bs.pts.slice(bs.bakedThrough);
+  if (tail.length >= 2) {
+    if (!bs.liveShape || (now - bs.liveAt) >= CRACKLE_MS || bs.liveCount !== tail.length) {
+      bs.liveShape = boltAcrossPath(tail);
+      bs.liveAt = now;
+      bs.liveCount = tail.length;
+    }
+    renderBolt(state.ovCtx, bs.liveShape, bs.col);
+  }
 }
 
-function boltCurrentParam() {
-  if (!state.boltPtsA || !state.boltPtsB) return null;
-  var tNow = Math.min(1, (performance.now()-state.boltMorphStart)/BOLT_MORPH_MS);
-  var e = tNow*tNow*(3-2*tNow);
-  var n = Math.min(state.boltPtsA.length, state.boltPtsB.length);
-  var param = [];
-  for (var i = 0; i < n; i++)
-    param.push({t:state.boltPtsA[i].t+(state.boltPtsB[i].t-state.boltPtsA[i].t)*e, d:state.boltPtsA[i].d+(state.boltPtsB[i].d-state.boltPtsA[i].d)*e});
-  return param;
-}
-
-// The overlay only ever shows the live, uncommitted tail (the crackling
-// segment from the last anchor to the cursor). Committed segments are baked
-// straight to the main canvas in drawBoltStroke and never drawn here, so the
-// baked ink and the live preview can never overlap (no double stroke) and a
-// committed segment can never be left animating or dropped.
 function boltOverlayFrame() {
   var hasMain   = !!state.boltStroke;
   var hasMirror = state.mirrorMode && !!state.mirrorBoltStroke;
   if (!hasMain && !hasMirror) {
     state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
-    state.boltPtsA = null; state.boltPtsB = null;
     state.boltAnimFrame = null;
     return;
   }
   var now = performance.now();
   state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
-
-  if (state.boltStroke) {
-    var bs = state.boltStroke;
-    if (!state.boltPtsA) {
-      state.boltPtsA = boltMakeParam(bs); state.boltPtsB = boltMakeParam(bs); state.boltMorphStart = now;
-    }
-    var t = (now-state.boltMorphStart)/BOLT_MORPH_MS;
-    if (t >= 1) { state.boltPtsA = state.boltPtsB; state.boltPtsB = boltMakeParam(bs); state.boltMorphStart = now; t = 0; }
-    var ease = t*t*(3-2*t);
-    if (state.boltPtsA && state.boltPtsB) {
-      var n2 = Math.min(state.boltPtsA.length,state.boltPtsB.length);
-      var param = [];
-      for (var j = 0; j < n2; j++)
-        param.push({t:state.boltPtsA[j].t+(state.boltPtsB[j].t-state.boltPtsA[j].t)*ease, d:state.boltPtsA[j].d+(state.boltPtsB[j].d-state.boltPtsA[j].d)*ease});
-      drawBoltParam(state.ovCtx,param,bs.anchorX,bs.anchorY,bs.curX,bs.curY,bs.col);
-    }
-  }
-
-  if (hasMirror && state.mirrorBoltStroke) {
-    var mbs = state.mirrorBoltStroke;
-    if (!state.mirrorBoltPtsA) {
-      state.mirrorBoltPtsA = boltMakeParam(mbs); state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now;
-    }
-    var mt = (now-state.mirrorBoltMorphStart)/BOLT_MORPH_MS;
-    if (mt >= 1) { state.mirrorBoltPtsA = state.mirrorBoltPtsB; state.mirrorBoltPtsB = boltMakeParam(mbs); state.mirrorBoltMorphStart = now; mt = 0; }
-    var mEase = mt*mt*(3-2*mt);
-    if (state.mirrorBoltPtsA && state.mirrorBoltPtsB) {
-      var mn2 = Math.min(state.mirrorBoltPtsA.length,state.mirrorBoltPtsB.length);
-      var mParam = [];
-      for (var mj = 0; mj < mn2; mj++)
-        mParam.push({t:state.mirrorBoltPtsA[mj].t+(state.mirrorBoltPtsB[mj].t-state.mirrorBoltPtsA[mj].t)*mEase, d:state.mirrorBoltPtsA[mj].d+(state.mirrorBoltPtsB[mj].d-state.mirrorBoltPtsA[mj].d)*mEase});
-      drawBoltParam(state.ovCtx,mParam,mbs.anchorX,mbs.anchorY,mbs.curX,mbs.curY,mbs.col);
-    }
-  }
-
+  if (state.boltStroke) processStroke(state.boltStroke, now);
+  if (hasMirror) processStroke(state.mirrorBoltStroke, now);
   state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
 }
 
-// Bake the segment anchor->(x,y) onto the main canvas. Uses the shape currently
-// shown on the overlay (boltCurrentParam) so the hand-off from live preview to
-// baked ink is seamless; falls back to a fresh fractal if no live shape exists.
-function bakeBoltSegment(ax, ay, x, y, col) {
-  var cur = boltCurrentParam();
-  if (cur) drawBoltParam(state.ctx, cur, ax, ay, x, y, col);
-  else bakeBolt(ax, ay, x, y, col);
-}
-
+// --- Public API -------------------------------------------------------------
 export function drawBoltStroke(x, y, col) {
   if (!state.boltStroke) {
-    state.boltStroke = {anchorX:state.lastX,anchorY:state.lastY,accum:0,lx:state.lastX,ly:state.lastY,curX:x,curY:y,col:col,accumStart:performance.now()};
+    state.boltStroke = {pts:[{x:x, y:y, t:performance.now()}], col:col, bakedThrough:0, liveShape:null, liveAt:0, liveCount:0};
+  } else {
+    var bs = state.boltStroke;
+    bs.col = col;
+    bs.pts.push({x:x, y:y, t:performance.now()});
   }
-  // One shared animation loop drives both the main and mirror live tails; the
-  // guard keeps the mirror pass from starting a second, uncancellable loop.
+  // One shared animation loop drives both the main and mirror tails; the guard
+  // keeps the mirror pass from starting a second, uncancellable loop.
   if (!state.boltAnimFrame) state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
-  var bs = state.boltStroke;
-  bs.col = col; bs.curX = x; bs.curY = y;
-  bs.accum += Math.hypot(x-bs.lx, y-bs.ly);
-  bs.lx = x; bs.ly = y;
-  var threshold = Math.max(100, state.brushSize*7);
-  if (bs.accum >= threshold) {
-    // Commit the segment straight to the main canvas — gapless and never lost.
-    bakeBoltSegment(bs.anchorX, bs.anchorY, x, y, col);
-    bs.anchorX = x; bs.anchorY = y; bs.accum = 0; bs.accumStart = performance.now();
-    state.boltPtsA = null; state.boltPtsB = null;
-  }
+}
+
+function bakeRemaining(bs) {
+  if (!bs) return;
+  var tail = bs.pts.slice(bs.bakedThrough);
+  if (tail.length >= 2) bakePath(tail, bs.col);
+  bs.bakedThrough = bs.pts.length - 1;
 }
 
 export function finalizeBoltStroke() {
-  if (!state.boltStroke) return;
-  var bs = state.boltStroke;
-  if (Math.hypot(bs.curX-bs.anchorX, bs.curY-bs.anchorY) > 4)
-    bakeBoltSegment(bs.anchorX, bs.anchorY, bs.curX, bs.curY, bs.col);
-  if (state.mirrorBoltStroke) {
-    var mbs = state.mirrorBoltStroke;
-    if (Math.hypot(mbs.curX-mbs.anchorX, mbs.curY-mbs.anchorY) > 4)
-      bakeBolt(mbs.anchorX, mbs.anchorY, mbs.curX, mbs.curY, mbs.col);
-    state.mirrorBoltStroke = null; state.mirrorBoltPtsA = null; state.mirrorBoltPtsB = null;
-  }
+  if (state.boltStroke) { bakeRemaining(state.boltStroke); state.boltStroke = null; }
+  if (state.mirrorBoltStroke) { bakeRemaining(state.mirrorBoltStroke); state.mirrorBoltStroke = null; }
   if (state.boltAnimFrame) { cancelAnimationFrame(state.boltAnimFrame); state.boltAnimFrame = null; }
-  state.boltStroke = null; state.boltPtsA = null; state.boltPtsB = null;
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
 }
