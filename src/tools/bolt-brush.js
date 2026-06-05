@@ -7,28 +7,48 @@ import state from '../state.js';
 //   * the live tail follows every recorded point (no chord-gap on fast flicks),
 //   * the animation settles on its own a moment after you stop moving,
 //   * and it always bakes fully on release (never crackles forever).
-var LIFE_MS = 240;        // how long a point stays in the live, animated tail
-var CRACKLE_MS = 60;      // regenerate the live fractal at most this often (flicker)
+var LIFE_MS = 520;        // how long a point stays in the live, animated tail
+var CRACKLE_MS = 70;      // regenerate the live fractal at most this often (flicker)
 
 function bakeMinLen() { return Math.max(70, state.brushSize * 6); }
 
-// --- Fractal + drawing primitives -------------------------------------------
-function fractalBolt(x0, y0, x1, y1, depth, spread, branches) {
-  var dx = x1-x0, dy = y1-y0, len = Math.hypot(dx, dy);
-  if (depth <= 0 || len < 3) return [{x:x0,y:y0},{x:x1,y:y1}];
-  var nx = -dy/len, ny = dx/len;
-  var disp = (Math.random()-0.5)*spread;
-  var mx = (x0+x1)/2+nx*disp, my = (y0+y1)/2+ny*disp;
-  if (branches && depth === 2 && Math.random() < 0.50) {
-    var bAng = Math.atan2(dy,dx) + (Math.random()<0.5?-1:1)*(0.5+Math.random()*0.9);
-    var bLen = len*(0.28+Math.random()*0.42);
-    branches.push({x0:mx,y0:my,x1:mx+Math.cos(bAng)*bLen,y1:my+Math.sin(bAng)*bLen,depth:depth-1,spread:spread*0.45});
+// Jag tuning. The bolt is built in two independent layers (see buildBolt):
+//   SKEL_STEP — how finely we follow the *drawn* path. Small, so curves survive.
+//   jagAmp()  — primary perpendicular jag amplitude (fixed spatial scale, tied
+//               to brush size, never to cursor speed).
+//   JAG_WL    — base jag wavelength in px; each octave halves it for finer detail.
+//   MORPH_RATE— how fast the live bolt shimmers over time. The jag is *coherent*
+//               value noise (not fresh randomness each tick), so the bolt holds
+//               its shape and morphs smoothly instead of teleporting — that's
+//               what keeps the animation calm rather than erratic.
+var SKEL_STEP = 5;
+function jagAmp() { return Math.max(12, state.brushSize * 1.8); }
+var JAG_WL = 46;
+var JAG_OCTAVES = 3;
+var MORPH_RATE = 0.0010;
+
+// 1D value noise in [-1,1]: smooth, deterministic, continuous in both its
+// position and seed inputs. Continuity is the whole point — sampling it at a
+// slowly drifting phase gives a gentle shimmer, and sampling the same arc-length
+// position always returns the same base shape (so the bolt is stable in space).
+function fract(x) { return x - Math.floor(x); }
+function hash1(n, seed) { return fract(Math.sin(n*12.9898 + seed*78.233) * 43758.5453) * 2 - 1; }
+function vnoise(u, seed) {
+  var i = Math.floor(u), f = u - i, t = f*f*(3-2*f);
+  return hash1(i, seed) + (hash1(i+1, seed) - hash1(i, seed)) * t;
+}
+// Perpendicular offset at arc-length s and time ms for a given stroke seed.
+// Multi-octave (fractal): big slow bends + progressively finer, faster crackle.
+function jagOffset(s, ms, seed) {
+  var o = 0, amp = jagAmp(), wl = JAG_WL, phase = ms * MORPH_RATE;
+  for (var k = 0; k < JAG_OCTAVES; k++) {
+    o += amp * vnoise(s/wl + phase, seed + k*19.7);
+    amp *= 0.5; wl *= 0.5; phase *= 1.8;
   }
-  var left = fractalBolt(x0,y0,mx,my,depth-1,spread*0.58,branches);
-  var right = fractalBolt(mx,my,x1,y1,depth-1,spread*0.58,branches);
-  return left.concat(right.slice(1));
+  return o;
 }
 
+// --- Drawing primitives -----------------------------------------------------
 function drawBoltPath(targetCtx, pts, col, lineWidth, alpha) {
   targetCtx.save();
   targetCtx.strokeStyle = col; targetCtx.lineWidth = lineWidth;
@@ -51,19 +71,53 @@ function strokeBoltGlow(targetCtx, pts, col, w) {
   targetCtx.stroke(); targetCtx.restore();
 }
 
-// Build one fractal lightning that threads through every point of a polyline.
-// Each straight segment is independently subdivided, so the bolt bends with the
-// recorded path instead of cutting a straight chord across fast movement.
-function boltAcrossPath(pts) {
-  if (!pts || pts.length < 2) return null;
+// Resample a polyline down to evenly-spaced vertices `step` apart. The recorded
+// mousemove points cluster tightly when you draw slowly and spread out when you
+// draw fast; resampling to a fixed spatial step decouples the zig-zag from
+// cursor speed entirely.
+function resamplePath(pts, step) {
   var out = [{x:pts[0].x, y:pts[0].y}];
-  for (var i = 1; i < pts.length; i++) {
-    var a = pts[i-1], b = pts[i];
-    var len = Math.hypot(b.x-a.x, b.y-a.y);
-    if (len < 3) { out.push({x:b.x, y:b.y}); continue; }
-    var depth = Math.min(5, 2+Math.floor(Math.log2(Math.max(1, len/10))));
-    var seg = fractalBolt(a.x, a.y, b.x, b.y, depth, len*0.72, null);
-    out = out.concat(seg.slice(1)); // slice(1) drops the duplicated shared start point
+  var px = pts[0].x, py = pts[0].y;
+  var i = 1;
+  while (i < pts.length) {
+    var dx = pts[i].x-px, dy = pts[i].y-py;
+    var d = Math.hypot(dx, dy);
+    if (d < step) { px = pts[i].x; py = pts[i].y; i++; continue; }
+    var t = step/d;
+    px += dx*t; py += dy*t;
+    out.push({x:px, y:py}); // stay on segment i, keep stepping along it
+  }
+  var last = pts[pts.length-1], lp = out[out.length-1];
+  if (Math.hypot(last.x-lp.x, last.y-lp.y) > step*0.25) out.push({x:last.x, y:last.y});
+  return out;
+}
+
+// Build the lightning in two independent layers so curve fidelity and jag scale
+// don't fight each other:
+//   1. SKELETON — fine-resample the recorded points [from..to] (SKEL_STEP).
+//      This faithfully follows whatever you draw, curves included; no coarse
+//      chords.
+//   2. JAG — push every skeleton vertex sideways by jagOffset() sampled at its
+//      *global* arc length (baseArc + distance along this sub-path) and time ms.
+//      Using global arc length + a per-stroke seed means a given physical point
+//      always jags the same way, so a baked chunk and the live tail line up, and
+//      baking at the same ms reproduces exactly what was on screen.
+function buildBolt(pts, from, to, ms, seed, baseArc) {
+  var sub = [];
+  for (var i = from; i <= to; i++) sub.push(pts[i]);
+  if (sub.length < 2) return null;
+  var skel = resamplePath(sub, SKEL_STEP);
+  if (skel.length < 2) skel = [{x:sub[0].x,y:sub[0].y}, {x:sub[sub.length-1].x,y:sub[sub.length-1].y}];
+
+  var out = [];
+  var s = baseArc;
+  for (var j = 0; j < skel.length; j++) {
+    if (j > 0) s += Math.hypot(skel[j].x-skel[j-1].x, skel[j].y-skel[j-1].y);
+    var a = skel[Math.max(0,j-1)], b = skel[Math.min(skel.length-1,j+1)];
+    var tx = b.x-a.x, ty = b.y-a.y, tl = Math.hypot(tx,ty)||1;
+    var nx = -ty/tl, ny = tx/tl;
+    var o = jagOffset(s, ms, seed);
+    out.push({x: skel[j].x + nx*o, y: skel[j].y + ny*o});
   }
   return out;
 }
@@ -75,11 +129,6 @@ function renderBolt(targetCtx, jaggedPts, col) {
   drawBoltPath(targetCtx, jaggedPts, '#fff', Math.max(1, w*0.40), 0.95);
 }
 
-// Bake the polyline chunk straight onto the main canvas (permanent ink).
-function bakePath(pts, col) {
-  renderBolt(state.ctx, boltAcrossPath(pts), col);
-}
-
 // --- Per-stroke processing --------------------------------------------------
 function pathLen(pts, from, to) {
   var L = 0;
@@ -87,11 +136,15 @@ function pathLen(pts, from, to) {
   return L;
 }
 
-// Advance baking for one stroke (main or mirror) and draw its live tail onto
-// the overlay. Returns nothing; mutates bs.bakedThrough and the overlay.
-function processStroke(bs, now) {
+// Advance baking + decide whether this stroke's live shape needs redrawing.
+// Returns true if anything changed (a chunk baked, or the crackle shape
+// regenerated) so the caller knows whether to repaint the overlay. The actual
+// (expensive, blurred) draw is deferred to renderStroke so we only pay for it
+// when something actually changed — not on every 60fps frame.
+function advanceStroke(bs, now) {
   var n = bs.pts.length;
-  if (n < 2) return;
+  if (n < 2) return false;
+  var changed = false;
 
   // How far has the expired (older than LIFE_MS) region grown past what we've
   // already baked? expireIdx is the last contiguous expired index.
@@ -99,31 +152,51 @@ function processStroke(bs, now) {
   for (var k = bs.bakedThrough+1; k < n; k++) {
     if (now - bs.pts[k].t > LIFE_MS) expireIdx = k; else break;
   }
+  var idle = now - bs.pts[n-1].t; // time since the cursor last moved
   if (expireIdx > bs.bakedThrough) {
     var regionLen = pathLen(bs.pts, bs.bakedThrough, expireIdx);
-    var idle = now - bs.pts[n-1].t; // time since the cursor last moved
-    // Bake in chunks of ~bakeMinLen to keep seams sparse during fast drawing,
-    // but if the cursor has gone idle, flush whatever has expired so the bolt
-    // settles into permanent ink instead of hovering on the overlay.
-    if (regionLen >= bakeMinLen() || idle > LIFE_MS) {
-      // Include the shared boundary point so baked ink joins the live tail.
-      bakePath(bs.pts.slice(bs.bakedThrough, expireIdx+1), bs.col);
+    if (idle > LIFE_MS) {
+      // SETTLE: the cursor has stopped. Bake *exactly* the shape currently on the
+      // overlay (reuse bs.liveShape) so the freeze into permanent ink is
+      // seamless — no snap to a different random shape. Then clear the tail.
+      var settle = bs.liveShape || buildBolt(bs.pts, bs.bakedThrough, n-1, now, bs.seed, bs.bakedArc);
+      renderBolt(state.ctx, settle, bs.col);
+      bs.bakedArc += pathLen(bs.pts, bs.bakedThrough, n-1);
+      bs.bakedThrough = n-1;
+      bs.liveShape = null;
+      return true;
+    } else if (regionLen >= bakeMinLen()) {
+      // Mid-stroke chunk bake to cap the live tail length (perf). Seams here are
+      // masked by the moving cursor. Built at the same arc length + ms as the
+      // live tail, so it lines up.
+      var chunk = buildBolt(bs.pts, bs.bakedThrough, expireIdx, now, bs.seed, bs.bakedArc);
+      renderBolt(state.ctx, chunk, bs.col);
+      bs.bakedArc += pathLen(bs.pts, bs.bakedThrough, expireIdx);
       bs.bakedThrough = expireIdx;
+      changed = true;
     }
   }
 
-  // Live, crackling tail: everything not yet baked. Regenerate the jagged shape
-  // on the CRACKLE_MS cadence so it flickers like real lightning rather than
-  // strobing every frame.
+  // Live tail: everything not yet baked. Rebuilt on the CRACKLE_MS cadence — but
+  // because jagOffset is coherent value noise drifting on `now`, each rebuild is
+  // a small smooth change, not a fresh random teleport.
   var tail = bs.pts.slice(bs.bakedThrough);
   if (tail.length >= 2) {
     if (!bs.liveShape || (now - bs.liveAt) >= CRACKLE_MS || bs.liveCount !== tail.length) {
-      bs.liveShape = boltAcrossPath(tail);
+      bs.liveShape = buildBolt(bs.pts, bs.bakedThrough, n-1, now, bs.seed, bs.bakedArc);
       bs.liveAt = now;
       bs.liveCount = tail.length;
+      changed = true;
     }
-    renderBolt(state.ovCtx, bs.liveShape, bs.col);
+  } else if (bs.liveShape) {
+    bs.liveShape = null; // tail fully baked away — clear the overlay remnant
+    changed = true;
   }
+  return changed;
+}
+
+function renderStroke(bs) {
+  if (bs.liveShape) renderBolt(state.ovCtx, bs.liveShape, bs.col);
 }
 
 function boltOverlayFrame() {
@@ -135,16 +208,23 @@ function boltOverlayFrame() {
     return;
   }
   var now = performance.now();
-  state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
-  if (state.boltStroke) processStroke(state.boltStroke, now);
-  if (hasMirror) processStroke(state.mirrorBoltStroke, now);
+  // Advance both strokes first; only repaint the overlay (the costly blurred
+  // pass) when a shape actually changed this tick.
+  var changed = false;
+  if (state.boltStroke) changed = advanceStroke(state.boltStroke, now) || changed;
+  if (hasMirror)        changed = advanceStroke(state.mirrorBoltStroke, now) || changed;
+  if (changed) {
+    state.ovCtx.clearRect(0,0,state.canvasW,state.canvasH);
+    if (state.boltStroke) renderStroke(state.boltStroke);
+    if (hasMirror)        renderStroke(state.mirrorBoltStroke);
+  }
   state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
 }
 
 // --- Public API -------------------------------------------------------------
 export function drawBoltStroke(x, y, col) {
   if (!state.boltStroke) {
-    state.boltStroke = {pts:[{x:x, y:y, t:performance.now()}], col:col, bakedThrough:0, liveShape:null, liveAt:0, liveCount:0};
+    state.boltStroke = {pts:[{x:x, y:y, t:performance.now()}], col:col, bakedThrough:0, bakedArc:0, seed:Math.random()*1000, liveShape:null, liveAt:0, liveCount:0};
   } else {
     var bs = state.boltStroke;
     bs.col = col;
@@ -157,9 +237,12 @@ export function drawBoltStroke(x, y, col) {
 
 function bakeRemaining(bs) {
   if (!bs) return;
-  var tail = bs.pts.slice(bs.bakedThrough);
-  if (tail.length >= 2) bakePath(tail, bs.col);
-  bs.bakedThrough = bs.pts.length - 1;
+  if (bs.bakedThrough < bs.pts.length - 1) {
+    // Reuse the live shape if we have it so release freezes exactly what's shown.
+    var shape = bs.liveShape || buildBolt(bs.pts, bs.bakedThrough, bs.pts.length-1, performance.now(), bs.seed, bs.bakedArc);
+    renderBolt(state.ctx, shape, bs.col);
+    bs.bakedThrough = bs.pts.length - 1;
+  }
 }
 
 export function finalizeBoltStroke() {
