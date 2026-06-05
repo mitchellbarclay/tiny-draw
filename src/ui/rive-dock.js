@@ -93,8 +93,10 @@ export function initRiveDock() {
     var wasCap = _riveCapturing;
     _riveCapturing = false;
     if (!wasCap) {
-      // End any drawing stroke in progress
-      window.dispatchEvent(new MouseEvent('mouseup'));
+      // Dispatch to the drawing canvas (not window) so the canvas mouseup
+      // handler fires and calls all tool finalizers (rect, ellipse, pipe, etc.).
+      // bubbles:true lets it propagate to window for the bolt safety-net too.
+      state.canvas.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     }
   });
 }
