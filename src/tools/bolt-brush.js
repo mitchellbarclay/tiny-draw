@@ -15,7 +15,7 @@ var SKEL_STEP = 5;        // path resample step (px) — small, so curves surviv
 function jagAmp() { return Math.max(12, state.brushSize * 1.8); } // jag size
 var JAG_WL = 46;          // base jag wavelength (px); each octave halves it
 var JAG_OCTAVES = 3;      // layers of detail: big bends + finer crackle
-var MORPH_RATE = 0.0013;  // shimmer speed (noise units per ms), constant in time
+var MORPH_RATE = 0.0030;  // shimmer speed (noise units per ms), constant in time
 var SETTLE_MS = 1000;     // each point settles over this long after it's drawn
 var CADENCE_MS = 33;      // throttle rebuild/morph to ~30fps
 
@@ -121,9 +121,7 @@ function renderBolt(ctx, pts, col) {
     for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
   }
   ctx.strokeStyle = col;
-  ctx.globalAlpha = 0.14; ctx.lineWidth = w*2.8; trace(); ctx.stroke();
-  ctx.globalAlpha = 0.26; ctx.lineWidth = w*1.8; trace(); ctx.stroke();
-  ctx.globalAlpha = 0.55; ctx.lineWidth = w*1.0; trace(); ctx.stroke();
+  ctx.globalAlpha = 0.34; ctx.lineWidth = w*2.2; trace(); ctx.stroke();
   ctx.globalAlpha = 1.0;  ctx.strokeStyle = '#fff'; ctx.lineWidth = Math.max(1, w*0.42); trace(); ctx.stroke();
   ctx.restore();
 }
