@@ -11,9 +11,9 @@ var camDist = 0;
 var primaryMesh = null;
 var mirrorMesh = null;
 
-// Cross-section of the ribbon: a flattened hexagon (faceted, wider than thick).
+// Cross-section of the ribbon: a flattened pentagon (low-poly, wider than thick).
 // Listed CCW. Scaled per-ring by halfW (u) and halfT (v).
-var SIDES = 6;
+var SIDES = 5;
 var CS = [];
 (function () {
   for (var k = 0; k < SIDES; k++) {
@@ -28,22 +28,21 @@ var _tmpV = new THREE.Vector3();
 function ensureRenderer() {
   if (renderer) return;
 
-  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  // antialias:false — we render at 2× DPR and downscale on drawImage, so the
+  // supersample already smooths edges. Skipping MSAA is a free perf win.
+  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: false });
   renderer.setPixelRatio(1);
   renderer.setClearColor(0x000000, 0);
 
   scene = new THREE.Scene();
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.40));
+  // Cheap matte lighting: ambient floor + one directional key. Flat-shaded
+  // facets do the heavy lifting for the 3D read, so no specular/rim needed.
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
 
-  var sun = new THREE.DirectionalLight(0xffffff, 1.25);
-  sun.position.set(-0.5, 0.85, 0.95).normalize();
+  var sun = new THREE.DirectionalLight(0xffffff, 1.05);
+  sun.position.set(-0.45, 0.8, 0.9).normalize();
   scene.add(sun);
-
-  // Cool rim light from the lower-right keeps shadowed facets from going muddy.
-  var rim = new THREE.DirectionalLight(0x88c0ff, 0.45);
-  rim.position.set(0.9, -0.5, 0.4).normalize();
-  scene.add(rim);
 }
 
 function ensureCamera() {
@@ -70,15 +69,16 @@ function hexToColor(hex) {
   );
 }
 
-function makeMaterial(color) {
+// Cheap matte material. flatShading derives face normals in the fragment
+// shader, so the geometry carries NO normal attribute (skips the per-rebuild
+// computeVertexNormals pass) and the facets render hard-edged / low-poly.
+export function makeMaterial(color) {
   var col = hexToColor(color);
-  return new THREE.MeshPhongMaterial({
+  return new THREE.MeshLambertMaterial({
     color: col,
-    shininess: 95,
-    specular: new THREE.Color(0.62, 0.62, 0.62),
-    emissive: col.clone().multiplyScalar(0.06),
-    side: THREE.DoubleSide,
-    flatShading: false,
+    emissive: col.clone().multiplyScalar(0.05),
+    side: THREE.FrontSide,
+    flatShading: true,
   });
 }
 
@@ -98,7 +98,7 @@ function rotateAround(v, axis, angle) {
 // Builds a twisting faceted ribbon mesh from append-only spine points.
 // Geometry is built one ring per point (no global resample) so already-laid
 // segments never shift as new points arrive.
-function buildRibbonMesh(pts, color, brushSize) {
+function buildRibbonMesh(pts, material, brushSize) {
   var radius = Math.max(2.2, brushSize * 0.40);
   var halfW = radius * 1.25;   // ribbon is wider...
   var halfT = radius * 0.46;   // ...than it is thick
@@ -122,7 +122,7 @@ function buildRibbonMesh(pts, color, brushSize) {
     var geo = new THREE.IcosahedronGeometry(radius * 1.15, 0);
     var c = P[0] || new THREE.Vector3(pts[0] ? pts[0].x : 0, pts[0] ? H - pts[0].y : 0, 0);
     geo.translate(c.x, c.y, c.z);
-    return new THREE.Mesh(geo, makeMaterial(color));
+    return new THREE.Mesh(geo, material);
   }
 
   var n = P.length;
@@ -211,19 +211,21 @@ function buildRibbonMesh(pts, color, brushSize) {
   cap(ringBase[0], true);
   cap(ringBase[n - 1], false);
 
+  // No normal attribute: flatShading derives normals in-shader, so we skip
+  // the computeVertexNormals() pass entirely.
   var geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(idx);
-  geo.computeVertexNormals();
 
-  return new THREE.Mesh(geo, makeMaterial(color));
+  return new THREE.Mesh(geo, material);
 }
 
-function disposeMesh(mesh) {
+// Disposes only the geometry — the material is cached per-stroke and reused
+// across rebuilds, so it's disposed separately in finalize.
+function disposeMeshGeom(mesh) {
   if (!mesh) return;
   scene.remove(mesh);
   if (mesh.geometry) mesh.geometry.dispose();
-  if (mesh.material) mesh.material.dispose();
 }
 
 function renderToCtx(ctx) {
@@ -245,16 +247,16 @@ function threeOverlayFrame() {
   var rebuilt = false;
 
   if (state.threeStroke && state.threeStroke.dirty) {
-    disposeMesh(primaryMesh);
-    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.color, state.threeStroke.brushSize);
+    disposeMeshGeom(primaryMesh);
+    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.material, state.threeStroke.brushSize);
     if (primaryMesh) scene.add(primaryMesh);
     state.threeStroke.dirty = false;
     rebuilt = true;
   }
 
   if (state.mirrorThreeStroke && state.mirrorThreeStroke.dirty) {
-    disposeMesh(mirrorMesh);
-    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.color, state.mirrorThreeStroke.brushSize);
+    disposeMeshGeom(mirrorMesh);
+    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.material, state.mirrorThreeStroke.brushSize);
     if (mirrorMesh) scene.add(mirrorMesh);
     state.mirrorThreeStroke.dirty = false;
     rebuilt = true;
@@ -276,12 +278,14 @@ export function drawThreeStroke(x, y, color) {
       pts: [{ x: x, y: y }],
       color: color,
       brushSize: state.brushSize,
+      material: makeMaterial(color),
       dirty: true,
     };
   } else {
     var last = state.threeStroke.pts[state.threeStroke.pts.length - 1];
     // Append-only spine with a fixed min spacing → committed segments are frozen.
-    if (Math.hypot(x - last.x, y - last.y) >= 6) {
+    // Coarser spacing = fewer rings = lower-poly + cheaper rebuilds.
+    if (Math.hypot(x - last.x, y - last.y) >= 9) {
       state.threeStroke.pts.push({ x: x, y: y });
       state.threeStroke.dirty = true;
     }
@@ -306,21 +310,25 @@ export function finalizeThreeStroke() {
   var anyMesh = false;
 
   if (state.threeStroke) {
-    disposeMesh(primaryMesh);
-    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.color, state.threeStroke.brushSize);
+    disposeMeshGeom(primaryMesh);
+    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.material, state.threeStroke.brushSize);
     if (primaryMesh) { scene.add(primaryMesh); anyMesh = true; }
   }
 
   if (state.mirrorThreeStroke) {
-    disposeMesh(mirrorMesh);
-    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.color, state.mirrorThreeStroke.brushSize);
+    disposeMeshGeom(mirrorMesh);
+    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.material, state.mirrorThreeStroke.brushSize);
     if (mirrorMesh) { scene.add(mirrorMesh); anyMesh = true; }
   }
 
   if (anyMesh) renderToCtx(state.ctx);
 
-  disposeMesh(primaryMesh); primaryMesh = null;
-  disposeMesh(mirrorMesh);  mirrorMesh = null;
+  disposeMeshGeom(primaryMesh); primaryMesh = null;
+  disposeMeshGeom(mirrorMesh);  mirrorMesh = null;
+
+  // Materials are cached on the stroke objects — dispose them here.
+  if (state.threeStroke && state.threeStroke.material) state.threeStroke.material.dispose();
+  if (state.mirrorThreeStroke && state.mirrorThreeStroke.material) state.mirrorThreeStroke.material.dispose();
 
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
   state.threeStroke = null;
