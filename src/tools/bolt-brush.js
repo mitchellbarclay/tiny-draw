@@ -2,20 +2,32 @@ import state from '../state.js';
 
 // --- Lightning bolt ---------------------------------------------------------
 // Model: a bolt is ONE continuous stroke (the path you draw) with a jagged
-// perpendicular *displacement* laid on top. While you draw, the displacement
-// shimmers; when you stop moving it progressively settles to a standstill. The
-// whole thing lives on the overlay until you release, then it bakes to the main
-// canvas exactly once. There are no baked mid-stroke "segments", so there are
-// no seams to mis-connect, and the only per-frame cost is re-stroking one path.
+// perpendicular *displacement* laid on top. The displacement shimmers, and each
+// part of the stroke settles to a standstill based on *its own age* — so the
+// older tail freezes while the freshly-drawn head still crackles, all at a
+// steady wall-clock rate independent of how fast you move the cursor. The whole
+// bolt lives on the overlay until release, then bakes to the main canvas once.
+// No mid-stroke "segments", so no seams; the only per-frame cost is re-stroking
+// one path.
 
 // --- Tuning -----------------------------------------------------------------
 var SKEL_STEP = 5;        // path resample step (px) — small, so curves survive
 function jagAmp() { return Math.max(12, state.brushSize * 1.8); } // jag size
 var JAG_WL = 46;          // base jag wavelength (px); each octave halves it
 var JAG_OCTAVES = 3;      // layers of detail: big bends + finer crackle
-var MORPH_RATE = 0.0010;  // shimmer speed (noise units per ms while moving)
-var SETTLE_MS = 500;      // after you stop moving, shimmer eases out over this
-var CADENCE_MS = 33;      // throttle heavy rebuild/morph to ~30fps
+var MORPH_RATE = 0.0013;  // shimmer speed (noise units per ms), constant in time
+var SETTLE_MS = 1000;     // each point settles over this long after it's drawn
+var CADENCE_MS = 33;      // throttle rebuild/morph to ~30fps
+
+// How far a point's animation phase has advanced as a function of its age. The
+// phase drifts at MORPH_RATE when fresh and eases linearly to a standstill over
+// SETTLE_MS — so this is the integral of that decaying rate. Past SETTLE_MS it's
+// frozen at a constant, which makes the settled jag permanent and deterministic.
+function settlePhase(age) {
+  if (age <= 0) return 0;
+  if (age >= SETTLE_MS) return MORPH_RATE * SETTLE_MS * 0.5;
+  return MORPH_RATE * (age - age*age / (2*SETTLE_MS));
+}
 
 // --- Coherent value noise ---------------------------------------------------
 // 1D value noise in [-1,1], smooth and deterministic in both inputs. Sampling
@@ -39,48 +51,56 @@ function jagOffset(s, phase, seed) {
 }
 
 // --- Geometry ---------------------------------------------------------------
-// Resample a polyline to evenly-spaced vertices `step` apart. Decouples the
-// skeleton from how densely/sparsely the cursor recorded points.
-function resamplePath(pts, step) {
-  var out = [{x:pts[0].x, y:pts[0].y}];
-  var px = pts[0].x, py = pts[0].y;
-  var i = 1;
-  while (i < pts.length) {
-    var dx = pts[i].x-px, dy = pts[i].y-py;
-    var d = Math.hypot(dx, dy);
-    if (d < step) { px = pts[i].x; py = pts[i].y; i++; continue; }
-    var t = step/d;
-    px += dx*t; py += dy*t;
-    out.push({x:px, y:py});
-  }
-  var last = pts[pts.length-1], lp = out[out.length-1];
-  if (Math.hypot(last.x-lp.x, last.y-lp.y) > step*0.25) out.push({x:last.x, y:last.y});
-  return out;
-}
-
-// Rebuild the cached skeleton (resampled path + per-vertex arc length).
+// Rebuild the cached skeleton: resample the recorded points to evenly-spaced
+// (SKEL_STEP) vertices, carrying along per-vertex arc length (sArr) and a
+// per-vertex timestamp (tArr, interpolated from the recorded points' times).
+// The timestamps are what let each part of the bolt settle by its own age.
 function rebuildSkel(bs) {
   var pts = bs.pts;
-  if (pts.length < 2) { bs.skel = null; bs.sArr = null; return; }
-  var skel = resamplePath(pts, SKEL_STEP);
-  if (skel.length < 2) skel = [{x:pts[0].x,y:pts[0].y}, {x:pts[pts.length-1].x,y:pts[pts.length-1].y}];
-  var s = [0];
-  for (var i = 1; i < skel.length; i++)
-    s[i] = s[i-1] + Math.hypot(skel[i].x-skel[i-1].x, skel[i].y-skel[i-1].y);
-  bs.skel = skel; bs.sArr = s;
+  if (pts.length < 2) { bs.skel = null; bs.sArr = null; bs.tArr = null; return; }
+  var skel = [{x:pts[0].x, y:pts[0].y}], sArr = [0], tArr = [pts[0].t];
+  var total = 0, acc = 0; // arc length so far, distance since last emitted vertex
+  for (var i = 1; i < pts.length; i++) {
+    var x0 = pts[i-1].x, y0 = pts[i-1].y, t0 = pts[i-1].t;
+    var dx = pts[i].x-x0, dy = pts[i].y-y0, seg = Math.hypot(dx, dy);
+    if (seg < 1e-6) continue;
+    var pos = 0; // distance consumed along this segment
+    while (acc + (seg - pos) >= SKEL_STEP) {
+      pos += SKEL_STEP - acc;
+      var f = pos / seg;
+      total += SKEL_STEP;
+      skel.push({x: x0+dx*f, y: y0+dy*f});
+      sArr.push(total);
+      tArr.push(t0 + (pts[i].t - t0) * f);
+      acc = 0;
+    }
+    acc += seg - pos;
+  }
+  if (acc > SKEL_STEP*0.25) { // trailing remainder → keep the true last point
+    var last = pts[pts.length-1];
+    total += acc;
+    skel.push({x:last.x, y:last.y}); sArr.push(total); tArr.push(last.t);
+  }
+  if (skel.length < 2) {
+    var a = pts[0], b = pts[pts.length-1];
+    bs.skel = [{x:a.x,y:a.y},{x:b.x,y:b.y}]; bs.sArr = [0, SKEL_STEP]; bs.tArr = [a.t, b.t];
+    return;
+  }
+  bs.skel = skel; bs.sArr = sArr; bs.tArr = tArr;
 }
 
-// Displace every skeleton vertex perpendicular to its local tangent by the jag
-// offset at that vertex's arc length and the current phase.
-function buildShape(bs) {
-  var skel = bs.skel, s = bs.sArr;
+// Displace every skeleton vertex perpendicular to its local tangent. Each vertex
+// gets its own animation phase from its age (now - its timestamp), so the older
+// tail is frozen and the fresh head still crackles.
+function buildShape(bs, now) {
+  var skel = bs.skel, s = bs.sArr, tA = bs.tArr;
   if (!skel || skel.length < 2) return null;
   var out = [];
   for (var j = 0; j < skel.length; j++) {
     var a = skel[Math.max(0,j-1)], b = skel[Math.min(skel.length-1,j+1)];
     var tx = b.x-a.x, ty = b.y-a.y, tl = Math.hypot(tx,ty)||1;
     var nx = -ty/tl, ny = tx/tl;
-    var o = jagOffset(s[j], bs.phase, bs.seed);
+    var o = jagOffset(s[j], settlePhase(now - tA[j]), bs.seed);
     out.push({x: skel[j].x + nx*o, y: skel[j].y + ny*o});
   }
   return out;
@@ -112,20 +132,18 @@ function renderBolt(ctx, pts, col) {
 // Advance one stroke. Returns {changed, animating}: `changed` => the overlay
 // needs a repaint this tick; `animating` => keep the rAF loop alive.
 function advance(bs, now) {
-  var idle = now - bs.lastMoveT;
-  var animating = idle < SETTLE_MS;
+  // The newest point is the youngest; once even it is older than SETTLE_MS the
+  // whole bolt has frozen and there's nothing left to animate.
+  var animating = (now - bs.lastMoveT) < SETTLE_MS;
   if (now - bs.procAt < CADENCE_MS) return {changed:false, animating:animating};
-  var dt = Math.min(now - bs.procAt, 100);
   bs.procAt = now;
 
   var changed = false;
   if (bs.skelDirty) { rebuildSkel(bs); bs.skelDirty = false; changed = true; }
-
-  var settle = Math.min(1, idle / SETTLE_MS); // 0 = moving, 1 = at rest
-  if (settle < 1) { bs.phase += dt * MORPH_RATE * (1 - settle); changed = true; }
-
-  if (changed || !bs.shape) bs.shape = buildShape(bs);
-  return {changed:changed, animating: settle < 1};
+  // While anything is still settling, every vertex's age changed, so rebuild.
+  if (animating) { bs.shape = buildShape(bs, now); changed = true; }
+  else if (changed || !bs.shape) bs.shape = buildShape(bs, now);
+  return {changed:changed, animating:animating};
 }
 
 function boltOverlayFrame() {
@@ -155,26 +173,26 @@ export function drawBoltStroke(x, y, col) {
   var now = performance.now();
   if (!state.boltStroke) {
     state.boltStroke = {
-      pts: [{x:x, y:y}], col: col, seed: Math.random()*1000,
-      phase: 0, lastMoveT: now, procAt: now - CADENCE_MS,
-      skel: null, sArr: null, skelDirty: true, shape: null
+      pts: [{x:x, y:y, t:now}], col: col, seed: Math.random()*1000,
+      lastMoveT: now, procAt: now - CADENCE_MS,
+      skel: null, sArr: null, tArr: null, skelDirty: true, shape: null
     };
   } else {
     var bs = state.boltStroke;
     bs.col = col;
-    bs.pts.push({x:x, y:y});
+    bs.pts.push({x:x, y:y, t:now});
     bs.lastMoveT = now;
     bs.skelDirty = true;
   }
   if (!state.boltAnimFrame) state.boltAnimFrame = requestAnimationFrame(boltOverlayFrame);
 }
 
-// Bake the final bolt to the main canvas — reuse the shape currently on the
-// overlay so the freeze is seamless; rebuild only if points arrived since.
+// Bake the bolt to the main canvas at release — rebuild at the current time so
+// any still-settling parts freeze exactly where they are on screen.
 function bakeStroke(bs) {
   if (!bs) return;
   if (bs.skelDirty || !bs.skel) rebuildSkel(bs);
-  var shape = (bs.shape && !bs.skelDirty) ? bs.shape : buildShape(bs);
+  var shape = buildShape(bs, performance.now());
   if (shape) renderBolt(state.ctx, shape, bs.col);
 }
 
