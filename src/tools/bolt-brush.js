@@ -15,9 +15,8 @@ var SKEL_STEP = 5;        // path resample step (px) — small, so curves surviv
 function jagAmp() { return Math.max(12, state.brushSize * 1.8); } // jag size
 var JAG_WL = 46;          // base jag wavelength (px); each octave halves it
 var JAG_OCTAVES = 3;      // layers of detail: big bends + finer crackle
-var MORPH_RATE = 0.0030;  // shimmer speed (noise units per ms), constant in time
+var MORPH_RATE = 0.0045;  // shimmer speed (noise units per ms), constant in time
 var SETTLE_MS = 1000;     // each point settles over this long after it's drawn
-var CADENCE_MS = 33;      // throttle rebuild/morph to ~30fps
 
 // How far a point's animation phase has advanced as a function of its age. The
 // phase drifts at MORPH_RATE when fresh and eases linearly to a standstill over
@@ -131,10 +130,9 @@ function renderBolt(ctx, pts, col) {
 // needs a repaint this tick; `animating` => keep the rAF loop alive.
 function advance(bs, now) {
   // The newest point is the youngest; once even it is older than SETTLE_MS the
-  // whole bolt has frozen and there's nothing left to animate.
+  // whole bolt has frozen and there's nothing left to animate. We rebuild every
+  // frame (no throttle) so the shimmer runs at the monitor's full refresh rate.
   var animating = (now - bs.lastMoveT) < SETTLE_MS;
-  if (now - bs.procAt < CADENCE_MS) return {changed:false, animating:animating};
-  bs.procAt = now;
 
   var changed = false;
   if (bs.skelDirty) { rebuildSkel(bs); bs.skelDirty = false; changed = true; }
@@ -172,7 +170,7 @@ export function drawBoltStroke(x, y, col) {
   if (!state.boltStroke) {
     state.boltStroke = {
       pts: [{x:x, y:y, t:now}], col: col, seed: Math.random()*1000,
-      lastMoveT: now, procAt: now - CADENCE_MS,
+      lastMoveT: now,
       skel: null, sArr: null, tArr: null, skelDirty: true, shape: null
     };
   } else {
