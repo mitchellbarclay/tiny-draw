@@ -23,11 +23,23 @@ export function initRiveDock() {
   if (!canvas) return;
 
   _sizeCanvas(canvas);
-  window.addEventListener('resize', function() {
+
+  // Keep the canvas backing store, Rive's drawing surface, and the DockVM
+  // canvas size all in sync with the current canvas-area size.
+  function _resync() {
     _sizeCanvas(canvas);
     if (_riveInst) _riveInst.resizeDrawingSurfaceToCanvas();
     _pushCanvasSize();
-  });
+  }
+
+  window.addEventListener('resize', _resync);
+  // The main canvas re-sizes off a ResizeObserver on #canvas-area (see main.js),
+  // which catches layout-driven size changes that never fire a window 'resize'
+  // (e.g. the left rail widening after the toolbar overflow arrows appear, or
+  // fonts settling). Without this, the Rive dock surface stays stuck at its
+  // initial size until a real window resize — the "needs a refresh to fit" bug.
+  var area = state.canvasArea || document.getElementById('canvas-area');
+  if (area && window.ResizeObserver) new ResizeObserver(_resync).observe(area);
 
   // Rive sets up its own pointer listeners on the canvas via setupRiveListeners
   // (called automatically on construction). We give the canvas pointer-events: auto
@@ -40,6 +52,11 @@ export function initRiveDock() {
     autoplay: true,
     layout: new window.rive.Layout({ fit: window.rive.Fit.Layout }),
     onLoad: function() {
+      // Re-sync the drawing surface now that load is complete and the layout
+      // has settled. The surface size captured during async load can lag the
+      // final canvas-area size, which left the dock rendered at the wrong scale
+      // until a manual refresh.
+      _resync();
       _bindViewModels();
     },
     onLoadError: function(e) {
