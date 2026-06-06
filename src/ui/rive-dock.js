@@ -26,20 +26,28 @@ export function initRiveDock() {
 
   // Keep the canvas backing store, Rive's drawing surface, and the DockVM
   // canvas size all in sync with the current canvas-area size.
+  //
+  // Critical guard: bail when the canvas has no rendered size. During the
+  // initial load the main canvas's ResizeObserver fires resize(), which adds
+  // .resizing to #canvas-area and hides #rive-dock-canvas (display:none) for
+  // ~180ms. resizeDrawingSurfaceToCanvas() measures the canvas via
+  // getBoundingClientRect — 0×0 while hidden — which would lock Rive's drawing
+  // surface to zero and leave the dock invisible until a manual refresh. This
+  // is the root of the "dock not sized / missing on load" bug.
   function _resync() {
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
     _sizeCanvas(canvas);
     if (_riveInst) _riveInst.resizeDrawingSurfaceToCanvas();
     _pushCanvasSize();
   }
 
   window.addEventListener('resize', _resync);
-  // The main canvas re-sizes off a ResizeObserver on #canvas-area (see main.js),
-  // which catches layout-driven size changes that never fire a window 'resize'
-  // (e.g. the left rail widening after the toolbar overflow arrows appear, or
-  // fonts settling). Without this, the Rive dock surface stays stuck at its
-  // initial size until a real window resize — the "needs a refresh to fit" bug.
-  var area = state.canvasArea || document.getElementById('canvas-area');
-  if (area && window.ResizeObserver) new ResizeObserver(_resync).observe(area);
+  // Observe the canvas element itself (not #canvas-area). It's inset:0 inside
+  // the area, so it tracks every area size change AND fires on the
+  // display:none→block transition when .resizing clears after load — which is
+  // exactly when we need to re-sync the surface to its now-visible size.
+  if (window.ResizeObserver) new ResizeObserver(_resync).observe(canvas);
 
   // Rive sets up its own pointer listeners on the canvas via setupRiveListeners
   // (called automatically on construction). We give the canvas pointer-events: auto
@@ -56,7 +64,16 @@ export function initRiveDock() {
       // has settled. The surface size captured during async load can lag the
       // final canvas-area size, which left the dock rendered at the wrong scale
       // until a manual refresh.
+      //
+      // If load lands during the ~180ms .resizing flash at startup the canvas
+      // is display:none, so this _resync (and any during the flash) bails on the
+      // zero-size guard, and ResizeObserver does NOT fire on display:none→block.
+      // The delayed re-syncs below run after the flash clears (canvas visible
+      // again) and correct a surface that would otherwise be stuck at zero —
+      // closing the intermittent "dock missing on load" race for good.
       _resync();
+      setTimeout(_resync, 250);
+      setTimeout(_resync, 600);
       _bindViewModels();
     },
     onLoadError: function(e) {
