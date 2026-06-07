@@ -427,10 +427,14 @@ function _fireTrigger(vmInst, triggerName) {
 
 // ── Alien blast: permanent pixel scatter + paint explosion + overlay animation ──
 // Rive handles the UFO animation; this fires the canvas-side impact effect.
-// Three distinct permanent marks are left on the canvas:
-//   1. Outward pixel displacement warp (done once, never reverts)
-//   2. Crater mark with neon rim
-//   3. Large paint explosion — blobs, tendrils, far satellites, energy streaks
+//
+// Animation sequence (all permanent canvas changes are kept; only overlay reverts):
+//   1. Compute warped offscreen canvas in one pass (pixel displacement)
+//   2. Reveal the warp progressively as an expanding ring (clip + drawImage)
+//   3. Tendrils grow incrementally as the warp front passes each step
+//   4. Blobs, satellites, streaks appear sequentially as the front reaches them
+//   5. Crater burns in once the front clears the epicentre
+//   6. Overlay (flash + rings + debris sparks) animates on ovCtx and fades
 
 var _ALIEN_SCHEMES = [
   ['#ff4daa', '#c44dff'],
@@ -440,58 +444,215 @@ var _ALIEN_SCHEMES = [
   ['#ff4d6e', '#ff9b4d'],
 ];
 
+var WARP_R = 250; // CSS px radius of the permanent pixel warp
+
 function _doAlienBlast(dropX, dropY) {
   saveHistory();
   state.lastStrokePoints = null;
 
-  var scheme = _ALIEN_SCHEMES[Math.floor(Math.random() * _ALIEN_SCHEMES.length)];
+  var scheme   = _ALIEN_SCHEMES[Math.floor(Math.random() * _ALIEN_SCHEMES.length)];
+  function pick() { return scheme[Math.floor(Math.random() * scheme.length)]; }
   var blastHue = Math.floor(Math.random() * 360);
+  var baseR    = Math.max(32, Math.min(state.canvasW, state.canvasH) * 0.09);
 
   var maxR = Math.ceil(Math.sqrt(
     Math.pow(Math.max(dropX, state.canvasW - dropX), 2) +
     Math.pow(Math.max(dropY, state.canvasH - dropY), 2)
   )) + 10;
 
-  // 1. Permanent outward pixel warp — reads canvas once, displaces pixels away from
-  //    blast centre, writes back. No per-frame revert.
-  _applyPermanentBlastWarp(dropX, dropY);
+  // ── Warped offscreen: compute once, revealed progressively via ring clip ────
+  var offscreen = document.createElement('canvas');
+  offscreen.width  = state.canvas.width;
+  offscreen.height = state.canvas.height;
+  var offCtx = offscreen.getContext('2d');
+  offCtx.drawImage(state.canvas, 0, 0);
+  _blastWarpCtx(offCtx, dropX, dropY);
 
-  // 2. Permanent crater + paint explosion stamped directly onto canvas
-  _stampAlienExplosion(dropX, dropY, scheme, blastHue);
+  // ── Pre-generate tendril paths with per-step distances ─────────────────────
+  var tendrils = [];
+  for (var tl = 0; tl < 12; tl++) {
+    var ttAngle = Math.random() * Math.PI * 2;
+    var ttLen   = baseR * (2.8 + Math.random() * 4.5);
+    var ttW     = baseR * (0.22 + Math.random() * 0.42);
+    var ttx = 0, tty = 0;
+    var ttSteps = Math.ceil(ttLen * 2.2);
+    var steps = [];
+    for (var ts = 0; ts < ttSteps; ts++) {
+      var ttt = ts / ttSteps;
+      steps.push({
+        x: dropX + ttx, y: dropY + tty,
+        r: Math.max(0.5, ttW * (1 - ttt * 0.88)),
+        a: Math.max(0, 1 - ttt * 0.65),
+        dist: Math.sqrt(ttx * ttx + tty * tty)
+      });
+      ttAngle += (Math.random() - 0.5) * 0.22;
+      ttx += Math.cos(ttAngle) * (1 + Math.random() * 0.5);
+      tty += Math.sin(ttAngle) * (1 + Math.random() * 0.5);
+    }
+    tendrils.push({ steps: steps, color: pick(), drawn: 0 });
+  }
 
-  // 3. Overlay-only animation: flash glow + expanding rings + debris sparks.
-  //    Nothing here writes to state.canvas — all visual revert is fine.
-  var pulseR = 0;
-  var flashAlpha = 1.0;
-  var PULSE_SPEED = 620;
-  var lastT = performance.now();
+  // ── Pre-generate blobs, satellites, streaks ────────────────────────────────
+  var blobs = [];
+  for (var bl = 0; bl < 20; bl++) {
+    var bang = (bl / 20) * Math.PI * 2;
+    var bd   = baseR * (0.25 + Math.random() * 0.85);
+    blobs.push({
+      x: dropX + Math.cos(bang) * bd, y: dropY + Math.sin(bang) * bd,
+      r: baseR * (0.42 + Math.random() * 0.88),
+      color: pick(), alpha: 0.75 + Math.random() * 0.25,
+      dist: bd, drawn: false
+    });
+  }
 
+  var satellites = [];
+  for (var sl = 0; sl < 24; sl++) {
+    var sAng2 = Math.random() * Math.PI * 2;
+    var sDist = baseR * (2.0 + Math.random() * 5.5);
+    satellites.push({
+      x: dropX + Math.cos(sAng2) * sDist, y: dropY + Math.sin(sAng2) * sDist,
+      r: Math.max(3, baseR * (0.07 + Math.random() * 0.38)),
+      color: pick(), alpha: 0.65 + Math.random() * 0.35,
+      dist: sDist, drawn: false
+    });
+  }
+
+  var nStreaks = 6 + Math.floor(Math.random() * 5);
+  var streaks = [];
+  for (var sr = 0; sr < nStreaks; sr++) {
+    var sAng3 = Math.random() * Math.PI * 2;
+    var sLen  = baseR * (3.2 + Math.random() * 4.8);
+    streaks.push({
+      ex: dropX + Math.cos(sAng3) * sLen, ey: dropY + Math.sin(sAng3) * sLen,
+      hue: (blastHue + sr * 42) % 360,
+      alpha: 0.55 + Math.random() * 0.35,
+      dist: sLen, drawn: false
+    });
+  }
+
+  // ── Overlay debris ──────────────────────────────────────────────────────────
   var debris = [];
   for (var di = 0; di < 55; di++) {
-    var da = Math.random() * Math.PI * 2;
+    var da   = Math.random() * Math.PI * 2;
     var dspd = 160 + Math.random() * 480;
-    var dlife = 0.5 + Math.random() * 1.0;
+    var dlif = 0.5 + Math.random() * 1.0;
     debris.push({
       x: dropX, y: dropY,
-      vx: Math.cos(da) * dspd,
-      vy: Math.sin(da) * dspd,
-      life: dlife, maxLife: dlife,
+      vx: Math.cos(da) * dspd, vy: Math.sin(da) * dspd,
+      life: dlif, maxLife: dlif,
       r: 1.5 + Math.random() * 3.5,
       hue: (blastHue + Math.floor(Math.random() * 80) - 40 + 360) % 360
     });
   }
 
-  function blastFrame() {
+  // ── Animation ──────────────────────────────────────────────────────────────
+  var revealR     = 0;
+  var lastRevealR = 0;
+  var REVEAL_SPEED = 380; // CSS px/s — how fast the warp front expands
+  var flashAlpha  = 1.0;
+  var pulseR      = 0;
+  var PULSE_SPEED = 640;
+  var craterDrawn = false;
+  var lastT       = performance.now();
+
+  function frame() {
     var now = performance.now();
-    var dt = Math.min(0.05, (now - lastT) / 1000);
-    lastT = now;
+    var dt  = Math.min(0.05, (now - lastT) / 1000);
+    lastT   = now;
 
-    flashAlpha = Math.max(0, flashAlpha - dt * 2.4);
-    pulseR += dt * PULSE_SPEED;
+    flashAlpha  = Math.max(0, flashAlpha - dt * 2.2);
+    pulseR     += dt * PULSE_SPEED;
+    lastRevealR = revealR;
+    revealR     = Math.min(WARP_R, revealR + dt * REVEAL_SPEED);
 
+    // ── Warp ring reveal (GPU drawImage, only new annulus each frame) ─────────
+    if (lastRevealR < WARP_R) {
+      state.ctx.save();
+      state.ctx.beginPath();
+      state.ctx.arc(dropX, dropY, revealR + 1, 0, Math.PI * 2, false);
+      if (lastRevealR > 0.5) {
+        // Cut out the already-revealed inner zone with a reverse arc (nonzero winding)
+        state.ctx.arc(dropX, dropY, Math.max(0, lastRevealR - 1), 0, Math.PI * 2, true);
+      }
+      state.ctx.clip();
+      state.ctx.drawImage(offscreen, 0, 0);
+      state.ctx.restore();
+    }
+
+    // ── Crater burns in once the front clears the epicentre ───────────────────
+    if (!craterDrawn && revealR >= baseR * 0.28) {
+      craterDrawn = true;
+      _drawBlastCrater(dropX, dropY, baseR, blastHue);
+    }
+
+    // ── Tendrils grow step by step ────────────────────────────────────────────
+    state.ctx.save();
+    for (var ti = 0; ti < tendrils.length; ti++) {
+      var tnd = tendrils[ti];
+      state.ctx.fillStyle = tnd.color;
+      while (tnd.drawn < tnd.steps.length && tnd.steps[tnd.drawn].dist <= revealR) {
+        var step = tnd.steps[tnd.drawn++];
+        state.ctx.globalAlpha = step.a;
+        state.ctx.beginPath();
+        state.ctx.arc(step.x, step.y, step.r, 0, Math.PI * 2);
+        state.ctx.fill();
+      }
+    }
+    state.ctx.globalAlpha = 1;
+    state.ctx.restore();
+
+    // ── Blobs pop in ──────────────────────────────────────────────────────────
+    state.ctx.save();
+    for (var bi = 0; bi < blobs.length; bi++) {
+      var blob = blobs[bi];
+      if (!blob.drawn && revealR >= blob.dist) {
+        blob.drawn = true;
+        state.ctx.fillStyle   = blob.color;
+        state.ctx.globalAlpha = blob.alpha;
+        state.ctx.beginPath();
+        state.ctx.arc(blob.x, blob.y, blob.r, 0, Math.PI * 2);
+        state.ctx.fill();
+      }
+    }
+    state.ctx.globalAlpha = 1;
+    state.ctx.restore();
+
+    // ── Satellites pop in ─────────────────────────────────────────────────────
+    state.ctx.save();
+    for (var si2 = 0; si2 < satellites.length; si2++) {
+      var sat = satellites[si2];
+      if (!sat.drawn && revealR >= sat.dist) {
+        sat.drawn = true;
+        state.ctx.fillStyle   = sat.color;
+        state.ctx.globalAlpha = sat.alpha;
+        state.ctx.beginPath();
+        state.ctx.arc(sat.x, sat.y, sat.r, 0, Math.PI * 2);
+        state.ctx.fill();
+      }
+    }
+    state.ctx.globalAlpha = 1;
+    state.ctx.restore();
+
+    // ── Streaks extend outward ────────────────────────────────────────────────
+    state.ctx.save();
+    for (var ski = 0; ski < streaks.length; ski++) {
+      var sk = streaks[ski];
+      if (!sk.drawn && revealR >= sk.dist) {
+        sk.drawn = true;
+        state.ctx.globalAlpha = sk.alpha;
+        state.ctx.strokeStyle = 'hsla(' + sk.hue + ',100%,75%,1)';
+        state.ctx.lineWidth   = 1.2;
+        state.ctx.beginPath();
+        state.ctx.moveTo(dropX, dropY);
+        state.ctx.lineTo(sk.ex, sk.ey);
+        state.ctx.stroke();
+      }
+    }
+    state.ctx.restore();
+
+    // ── Overlay (flash + rings + debris) — all on ovCtx, reverts fine ─────────
     state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
 
-    // Flash glow
     if (flashAlpha > 0) {
       var fg = state.ovCtx.createRadialGradient(dropX, dropY, 0, dropX, dropY, 120);
       fg.addColorStop(0, 'rgba(255,255,255,' + flashAlpha.toFixed(3) + ')');
@@ -503,7 +664,6 @@ function _doAlienBlast(dropX, dropY) {
       state.ovCtx.fill();
     }
 
-    // Expanding colour rings
     for (var ri = 0; ri < 4; ri++) {
       var rR = pulseR * (1 - ri * 0.07);
       if (rR <= 0 || rR > maxR + 80) continue;
@@ -512,7 +672,7 @@ function _doAlienBlast(dropX, dropY) {
       state.ovCtx.save();
       state.ovCtx.globalAlpha = ringFade * Math.max(0, 0.55 - ri * 0.1);
       state.ovCtx.strokeStyle = 'hsla(' + rHue + ',100%,70%,1)';
-      state.ovCtx.lineWidth = Math.max(2, 16 - ri * 3);
+      state.ovCtx.lineWidth   = Math.max(2, 16 - ri * 3);
       state.ovCtx.beginPath();
       state.ovCtx.arc(dropX, dropY, rR, 0, Math.PI * 2);
       state.ovCtx.stroke();
@@ -523,26 +683,25 @@ function _doAlienBlast(dropX, dropY) {
       state.ovCtx.save();
       state.ovCtx.globalAlpha = wFade * 0.85;
       state.ovCtx.strokeStyle = 'white';
-      state.ovCtx.lineWidth = 2;
+      state.ovCtx.lineWidth   = 2;
       state.ovCtx.beginPath();
       state.ovCtx.arc(dropX, dropY, pulseR, 0, Math.PI * 2);
       state.ovCtx.stroke();
       state.ovCtx.restore();
     }
 
-    // Debris sparks
     var anyAlive = false;
     for (var k = 0; k < debris.length; k++) {
       var p = debris[k];
       if (p.life <= 0) continue;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      p.x  += p.vx * dt;
+      p.y  += p.vy * dt;
       p.vy += 200 * dt;
       p.life -= dt;
       var lt = p.life / p.maxLife;
       state.ovCtx.save();
       state.ovCtx.globalAlpha = lt * 0.9;
-      state.ovCtx.fillStyle = 'hsl(' + p.hue + ',100%,' + Math.round(55 + lt * 25) + '%)';
+      state.ovCtx.fillStyle   = 'hsl(' + p.hue + ',100%,' + Math.round(55 + lt * 25) + '%)';
       state.ovCtx.beginPath();
       state.ovCtx.arc(p.x, p.y, Math.max(0.5, p.r * lt), 0, Math.PI * 2);
       state.ovCtx.fill();
@@ -550,26 +709,25 @@ function _doAlienBlast(dropX, dropY) {
       anyAlive = true;
     }
 
-    if (pulseR < maxR + 80 || flashAlpha > 0 || anyAlive) {
-      requestAnimationFrame(blastFrame);
+    if (revealR < WARP_R || flashAlpha > 0 || anyAlive) {
+      requestAnimationFrame(frame);
     } else {
       state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
     }
   }
-  requestAnimationFrame(blastFrame);
+  requestAnimationFrame(frame);
 }
 
-// One-shot permanent outward pixel displacement.
-// For each destination pixel within PUSH_R of the blast, pulls its source from
-// closer to centre (inverse warp = forward "explosion push"). Written once; no revert.
-function _applyPermanentBlastWarp(blastX, blastY) {
-  var DPR = state.DPR;
-  var bcx = blastX * DPR;
-  var bcy = blastY * DPR;
-  var W = state.canvas.width;
-  var H = state.canvas.height;
+// Compute full outward pixel warp into the given ctx (inverse warp = forward explosion push).
+// Reads from ctx's own pixels, writes back. Called once on an offscreen canvas.
+function _blastWarpCtx(ctx, blastX, blastY) {
+  var DPR    = state.DPR;
+  var bcx    = blastX * DPR;
+  var bcy    = blastY * DPR;
+  var W      = ctx.canvas.width;
+  var H      = ctx.canvas.height;
   var MAX_PUSH = 85 * DPR;
-  var PUSH_R   = 250 * DPR;
+  var PUSH_R   = WARP_R * DPR;
   var PUSH_R2  = PUSH_R * PUSH_R;
 
   var bx0 = Math.max(0, Math.floor(bcx - PUSH_R));
@@ -579,7 +737,7 @@ function _applyPermanentBlastWarp(blastX, blastY) {
   var pw = bx1 - bx0, ph = by1 - by0;
   if (pw <= 0 || ph <= 0) return;
 
-  var snap = state.ctx.getImageData(bx0, by0, pw, ph);
+  var snap = ctx.getImageData(bx0, by0, pw, ph);
   var sd   = snap.data;
   var dd   = new Uint8ClampedArray(sd.length);
 
@@ -588,10 +746,10 @@ function _applyPermanentBlastWarp(blastX, blastY) {
     var ddy = wy - bcy;
     var dy2 = ddy * ddy;
     for (var px = 0; px < pw; px++) {
-      var wx   = px + bx0;
-      var ddx  = wx - bcx;
+      var wx    = px + bx0;
+      var ddx   = wx - bcx;
       var dist2 = ddx * ddx + dy2;
-      var oi   = (py * pw + px) * 4;
+      var oi    = (py * pw + px) * 4;
 
       if (dist2 >= PUSH_R2) {
         dd[oi] = sd[oi]; dd[oi+1] = sd[oi+1]; dd[oi+2] = sd[oi+2]; dd[oi+3] = sd[oi+3];
@@ -599,13 +757,9 @@ function _applyPermanentBlastWarp(blastX, blastY) {
       }
 
       var dist = Math.sqrt(dist2);
-      if (dist < 0.5) {
-        dd[oi] = dd[oi+1] = dd[oi+2] = 0; dd[oi+3] = 0;
-        continue;
-      }
+      if (dist < 0.5) { dd[oi] = dd[oi+1] = dd[oi+2] = 0; dd[oi+3] = 0; continue; }
 
       var t    = 1 - dist / PUSH_R;
-      // Cap push so source is always within same side of centre (no "other side" smear)
       var push = Math.min(dist * 0.88, t * t * MAX_PUSH);
       var norm = 1 / dist;
       var srcX = Math.round(wx - ddx * norm * push);
@@ -617,18 +771,14 @@ function _applyPermanentBlastWarp(blastX, blastY) {
     }
   }
 
-  state.ctx.putImageData(new ImageData(dd, pw, ph), bx0, by0);
+  ctx.putImageData(new ImageData(dd, pw, ph), bx0, by0);
 }
 
-// Permanent crater mark + large paint explosion.
-function _stampAlienExplosion(dropX, dropY, scheme, blastHue) {
-  function pick() { return scheme[Math.floor(Math.random() * scheme.length)]; }
-  var baseR = Math.max(32, Math.min(state.canvasW, state.canvasH) * 0.09);
-
+// Crater void + neon rim, drawn onto state.ctx.
+function _drawBlastCrater(dropX, dropY, baseR, blastHue) {
+  var crR = baseR * 0.55;
   state.ctx.save();
 
-  // Crater: dark void with neon rim
-  var crR = baseR * 0.55;
   var cg = state.ctx.createRadialGradient(dropX, dropY, 0, dropX, dropY, crR);
   cg.addColorStop(0,   'rgba(0,0,0,0.92)');
   cg.addColorStop(0.7, 'rgba(0,0,0,0.72)');
@@ -638,7 +788,6 @@ function _stampAlienExplosion(dropX, dropY, scheme, blastHue) {
   state.ctx.arc(dropX, dropY, crR, 0, Math.PI * 2);
   state.ctx.fill();
 
-  state.ctx.save();
   state.ctx.shadowColor = 'hsla(' + blastHue + ',100%,72%,1)';
   state.ctx.shadowBlur  = 18;
   state.ctx.strokeStyle = 'hsla(' + blastHue + ',100%,82%,0.95)';
@@ -646,72 +795,6 @@ function _stampAlienExplosion(dropX, dropY, scheme, blastHue) {
   state.ctx.beginPath();
   state.ctx.arc(dropX, dropY, crR * 0.76, 0, Math.PI * 2);
   state.ctx.stroke();
-  state.ctx.restore();
-
-  // Core paint blobs
-  for (var i = 0; i < 20; i++) {
-    var ang   = (i / 20) * Math.PI * 2;
-    var blobD = baseR * (0.25 + Math.random() * 0.85);
-    var blobR = baseR * (0.42 + Math.random() * 0.88);
-    state.ctx.fillStyle  = pick();
-    state.ctx.globalAlpha = 0.75 + Math.random() * 0.25;
-    state.ctx.beginPath();
-    state.ctx.arc(dropX + Math.cos(ang) * blobD, dropY + Math.sin(ang) * blobD, blobR, 0, Math.PI * 2);
-    state.ctx.fill();
-  }
-  state.ctx.globalAlpha = 1;
-
-  // Long alien tendrils
-  for (var l = 0; l < 12; l++) {
-    var ta     = Math.random() * Math.PI * 2;
-    var tlen   = baseR * (2.8 + Math.random() * 4.5);
-    var tw     = baseR * (0.22 + Math.random() * 0.42);
-    var tx     = dropX, ty = dropY;
-    var tsteps = Math.ceil(tlen * 2.2);
-    state.ctx.fillStyle = pick();
-    for (var s = 0; s < tsteps; s++) {
-      var tt = s / tsteps;
-      var tr = Math.max(0.5, tw * (1 - tt * 0.88));
-      state.ctx.globalAlpha = Math.max(0, 1 - tt * 0.65);
-      state.ctx.beginPath();
-      state.ctx.arc(tx, ty, tr, 0, Math.PI * 2);
-      state.ctx.fill();
-      ta += (Math.random() - 0.5) * 0.22;
-      tx += Math.cos(ta) * (1 + Math.random() * 0.5);
-      ty += Math.sin(ta) * (1 + Math.random() * 0.5);
-    }
-  }
-  state.ctx.globalAlpha = 1;
-
-  // Far satellite splatters
-  for (var k = 0; k < 24; k++) {
-    var sa   = Math.random() * Math.PI * 2;
-    var satD = baseR * (2.0 + Math.random() * 5.5);
-    var satR = Math.max(3, baseR * (0.07 + Math.random() * 0.38));
-    state.ctx.fillStyle   = pick();
-    state.ctx.globalAlpha = 0.65 + Math.random() * 0.35;
-    state.ctx.beginPath();
-    state.ctx.arc(dropX + Math.cos(sa) * satD, dropY + Math.sin(sa) * satD, satR, 0, Math.PI * 2);
-    state.ctx.fill();
-  }
-  state.ctx.globalAlpha = 1;
-
-  // Thin alien energy streaks radiating from epicentre
-  var nStreaks = 6 + Math.floor(Math.random() * 5);
-  for (var sr = 0; sr < nStreaks; sr++) {
-    var sAng  = Math.random() * Math.PI * 2;
-    var sLen  = baseR * (3.2 + Math.random() * 4.8);
-    var sHue  = (blastHue + sr * 42) % 360;
-    state.ctx.save();
-    state.ctx.globalAlpha = 0.55 + Math.random() * 0.35;
-    state.ctx.strokeStyle = 'hsla(' + sHue + ',100%,75%,1)';
-    state.ctx.lineWidth   = 1.2;
-    state.ctx.beginPath();
-    state.ctx.moveTo(dropX, dropY);
-    state.ctx.lineTo(dropX + Math.cos(sAng) * sLen, dropY + Math.sin(sAng) * sLen);
-    state.ctx.stroke();
-    state.ctx.restore();
-  }
 
   state.ctx.restore();
 }
