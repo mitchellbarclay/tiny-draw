@@ -16,6 +16,7 @@ var _dockAtTop = false;
 var _lastFlipAt = 0;
 var _bottomDefault = null; // initial bottomPlacement captured after Rive loads
 var DOCK_EDGE = 18;
+var _mirrorBool = null;   // polled each Advance frame to sync mirror state
 
 export function initRiveDock() {
   if (!window.rive) { console.warn('[rive-dock] Rive runtime not loaded'); return; }
@@ -81,14 +82,24 @@ export function initRiveDock() {
     }
   });
 
-  // Per-frame sync: fill colour + dock centering
+  // Per-frame sync: fill colour, dock centering, mirror state
   var _lastColor = '';
+  var _lastMirror = false;
   _riveInst.on(window.rive.EventType.Advance, function() {
     if (state.color !== _lastColor) {
       _syncFillColor();
       _lastColor = state.color;
     }
     _centerDock();
+    if (_mirrorBool) {
+      var mv = _mirrorBool.value;
+      if (mv !== _lastMirror) {
+        _lastMirror = mv;
+        state.mirrorMode = mv;
+        var btn = document.getElementById('mirror-toggle');
+        if (btn) btn.classList.toggle('active', mv);
+      }
+    }
   });
 
   // ── Event relay ────────────────────────────────────────────────────────────
@@ -212,20 +223,13 @@ function _bindViewModels() {
     })(name, effectTrig);
   });
 
-  // Mirror: watch mirrorActive boolean on the nested 'mirror' VM instance
+  // Mirror: poll mirrorActive boolean each Advance frame (SM-driven writes don't
+  // reliably fire .on() so polling is the safe approach)
   var mirrorInst = _dockVM.viewModel('mirror');
   if (mirrorInst) {
     _toolVMs.mirror = mirrorInst;
-    var mirrorBool = mirrorInst.boolean('mirrorActive');
-    if (mirrorBool && typeof mirrorBool.on === 'function') {
-      mirrorBool.on(function() {
-        state.mirrorMode = mirrorBool.value;
-        var btn = document.getElementById('mirror-toggle');
-        if (btn) btn.classList.toggle('active', state.mirrorMode);
-      });
-    } else {
-      console.warn('[rive-dock] mirrorActive boolean not found or not subscribable');
-    }
+    _mirrorBool = mirrorInst.boolean('mirrorActive');
+    if (!_mirrorBool) console.warn('[rive-dock] mirrorActive boolean not found — check property name in Rive');
   } else {
     console.warn('[rive-dock] missing VM instance for: mirror');
   }
