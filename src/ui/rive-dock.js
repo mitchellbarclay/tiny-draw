@@ -249,7 +249,7 @@ function _bindViewModels() {
           if (pyProp) dropY = pyProp.value;
         }
         console.log('[rive-dock] alien blast at', Math.round(dropX), Math.round(dropY));
-        setTimeout(function() { _fireEffect('alien', dropX, dropY); }, 300);
+        setTimeout(function() { _fireEffect('alien', dropX, dropY); }, 500);
       });
     } else {
       console.warn('[rive-dock] blast trigger not found or not subscribable on alien VM');
