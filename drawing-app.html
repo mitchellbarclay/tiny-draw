@@ -59,29 +59,10 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #color-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); }
 #color-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
 #color-handle.anim-release { animation: sliderRelease 0.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
-#drag-shelf { position: absolute; left: 50%; transform: translateX(-50%); background: rgba(180,200,200,0.55); border-radius: 38px; padding: 8px 24px; display: flex; align-items: center; gap: 18px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 50; box-shadow: 0 6px 18px rgba(0,0,0,0.18); }
-#drag-shelf.stroke-passthrough { pointer-events: none; }
-#dock-toggle { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; cursor: pointer; color: rgba(255,255,255,0.9); user-select: none; flex-shrink: 0; margin-left: 2px; transition: background 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); }
-#dock-toggle:hover { background: rgba(255,255,255,0.36); }
-#dock-toggle:active { transform: scale(0.86); }
-#dock-toggle .mir { font-size: 22px; transition: transform 0.32s cubic-bezier(0.34,1.56,0.64,1); display: inline-block; }
-.drag-item-icon.emoji-icon { font-size: 42px; line-height: 1; width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; }
 #save-btn { margin-top: auto; background: #4ec18c; border: 4px solid rgba(255,255,255,0.85); border-radius: 50%; width: 50px; height: 50px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; user-select: none; color: white; transition: background 0.12s, transform 0.1s; box-shadow: 0 3px 8px rgba(0,0,0,0.18); }
 #save-btn:hover { background: #45b380; }
 #save-btn:active { transform: scale(0.92); }
 #save-btn.holding .settings-ring-fill { stroke-dashoffset: 0; transition: stroke-dashoffset 600ms linear; }
-.drag-item { display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: grab; user-select: none; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.28)); transform-origin: center bottom; }
-.drag-item:active { cursor: grabbing; }
-@keyframes dragItemPress { 0%{transform:scale(1,1)} 45%{transform:scale(1.12,0.86)} 100%{transform:scale(0.95,0.95)} }
-@keyframes dragItemRelease { 0%{transform:scale(0.95,0.95)} 35%{transform:scale(0.92,1.1)} 65%{transform:scale(1.05,0.97)} 100%{transform:scale(1,1)} }
-.drag-item.anim-press { animation: dragItemPress 0.22s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
-.drag-item.anim-release { animation: dragItemRelease 0.42s cubic-bezier(0.34,1.56,0.64,1) forwards; }
-@keyframes dragItemWiggle { 0%{transform:rotate(0) translateY(0)} 16%{transform:rotate(-10deg) translateY(-2px)} 34%{transform:rotate(8deg) translateY(0)} 52%{transform:rotate(-6deg)} 70%{transform:rotate(4deg)} 86%{transform:rotate(-2deg)} 100%{transform:rotate(0)} }
-.drag-item.anim-wiggle { animation: dragItemWiggle 0.5s cubic-bezier(0.36,0.07,0.19,0.97); }
-.drag-item-icon { width: 62px; height: 62px; }
-.drag-item-icon svg { width: 100% !important; height: 100% !important; }
-.drag-item-icon canvas { width: 100%; height: 100%; display: block; }
-.drag-item-label { font-size: 10px; font-weight: bold; color: rgba(255,255,255,0.6); font-family: 'Fredoka', sans-serif; letter-spacing: 0.1em; text-transform: uppercase; }
 #canvas-area { flex: 1; background: #ffffff; overflow: hidden; position: relative; min-width: 0; }
 #resize-overlay { display: none; position: absolute; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; color: #1a1a2e; font-family: 'Fredoka', sans-serif; font-size: 20px; letter-spacing: 0.02em; }
 #canvas-area.resizing #resize-overlay { display: flex; }
@@ -107,16 +88,6 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #slider-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
 #slider-handle.anim-release { animation: sliderRelease 0.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
 #action-row { display: none; }
-.drag-ghost-icon { position: fixed; pointer-events: none; z-index: 9999; transform: translate(-50%,-50%); filter: drop-shadow(0 14px 14px rgba(0,0,0,0.45)); transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1); }
-.drag-ghost-icon.pulled-out { transform: translate(-50%,-50%) scale(1.4); }
-.drag-ghost-icon.returning { transition: left 0.55s cubic-bezier(0.34,1.4,0.64,1), top 0.55s cubic-bezier(0.34,1.4,0.64,1), transform 0.4s ease-out; }
-.drag-item { position: relative; }
-.drag-hint-arrow { position: fixed; font-family: 'Material Symbols Outlined'; font-size: 22px; color: rgba(255,255,255,0.9); pointer-events: none; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35)); will-change: transform, opacity; z-index: 9998; }
-.drag-hint-arrow.dir-up { animation: dragHintUp 0.85s cubic-bezier(0.22,1,0.36,1) forwards, dragHintFade 0.85s ease-out forwards; }
-.drag-hint-arrow.dir-down { animation: dragHintDown 0.85s cubic-bezier(0.22,1,0.36,1) forwards, dragHintFade 0.85s ease-out forwards; }
-@keyframes dragHintUp { from { transform: translate3d(-50%, 8px, 0) scale(0.9); } to { transform: translate3d(-50%, -32px, 0) scale(1); } }
-@keyframes dragHintDown { from { transform: translate3d(-50%, -8px, 0) scale(0.9); } to { transform: translate3d(-50%, 32px, 0) scale(1); } }
-@keyframes dragHintFade { 0% { opacity: 0; } 18% { opacity: 0.95; } 70% { opacity: 0.85; } 100% { opacity: 0; } }
 #size-warning { display: none; position: fixed; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; }
 #size-warning.show { display: flex; }
 .size-warning-box { background: rgba(255,255,255,0.82); border: 1.5px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 36px 44px; max-width: 92%; text-align: center; color: #1a1a2e; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
@@ -149,13 +120,9 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #settings-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(8,8,24,0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
 #settings-overlay.visible { opacity: 1; pointer-events: auto; }
 
-/* ── Rive dock (experimental) ────────────────────────────────────────────── */
-#rive-dock-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 200; display: none; }
-body[data-dock="rive"] #rive-dock-canvas { display: block; }
-body[data-dock="rive"] #canvas-area.resizing #rive-dock-canvas { display: none; }
-body[data-dock="rive"] #drag-shelf { display: none !important; }
-#debug-dock-toggle { position: absolute; top: 10px; right: 10px; z-index: 300; background: rgba(0,0,0,0.55); color: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 5px 10px; font-family: 'Fredoka', sans-serif; font-size: 12px; cursor: pointer; outline: none; appearance: none; -webkit-appearance: none; }
-#debug-dock-toggle option { background: #1a1a2e; }
+/* ── Rive dock ───────────────────────────────────────────────────────────── */
+#rive-dock-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 200; }
+#canvas-area.resizing #rive-dock-canvas { display: none; }
 
 /* ── Settings panel ──────────────────────────────────────────────────────── */
 #settings-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0.88); z-index: 901; width: min(420px, calc(100vw - 48px)); max-height: calc(100vh - 80px); overflow: hidden; background: rgba(252,253,255,0.94); border: 1.5px solid rgba(255,255,255,0.95); border-radius: 30px; padding: 26px 26px 30px; box-shadow: 0 24px 72px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.55); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); opacity: 0; pointer-events: none; transition: opacity 0.32s ease, transform 0.40s cubic-bezier(0.34,1.56,0.64,1); font-family: 'Fredoka', sans-serif; color: #1a1a2e; }
@@ -276,22 +243,6 @@ body[data-dock="rive"] #drag-shelf { display: none !important; }
     </div>
     <div>Resizing canvas...</div>
   </div>
-  <select id="debug-dock-toggle" title="Switch dock implementation">
-    <option value="legacy">Legacy Dock</option>
-    <option value="rive" selected>Rive Dock (experimental)</option>
-  </select>
-  <div id="drag-shelf">
-  <div class="drag-item" id="undo-btn" title="Undo"><div class="drag-item-icon"><canvas id="undo-canvas" width="124" height="124"></canvas></div></div>
-  <div class="drag-item" id="bucket-btn" title="Fill"><div class="drag-item-icon"><img src="custom-icons/drag icons/bucket.svg" alt="bucket" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;" draggable="false"></div></div>
-  <div class="drag-item" id="alien-btn" title="Alien"><div class="drag-item-icon"><img src="custom-icons/drag icons/alien.svg" alt="alien" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;" draggable="false"></div></div>
-  <div class="drag-item" id="dynamite-btn">
-    <div class="drag-item-icon"><img src="custom-icons/drag icons/dynamite.svg" alt="dynamite" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;" draggable="false"></div>
-  </div>
-  <div class="drag-item" id="tornado-btn">
-    <div class="drag-item-icon"><img src="custom-icons/drag icons/tornado.svg" alt="tornado" style="width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;" draggable="false"></div>
-  </div>
-  <div id="dock-toggle" title="Move dock"><span class="mir">expand_less</span></div>
-</div>
 </div>
 
 <div id="right-rail">

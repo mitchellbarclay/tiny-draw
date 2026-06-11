@@ -15,8 +15,6 @@ import { initColorPicker, onColorMove, onColorRelease } from './ui/color-picker.
 import { initBrushSlider, onSliderMove, onSliderRelease } from './ui/brush-slider.js';
 import { initToolbar, hideRectSubmenu, hideEllipseSubmenu } from './ui/toolbar.js';
 import { initToolbarOverflow } from './ui/toolbar-overflow.js';
-import { initDragTools } from './ui/drag-tools.js';
-import { initDock } from './ui/dock.js';
 import { initRiveDock, setRiveDockActive, riveDockStrokeHit } from './ui/rive-dock.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { warmupTools } from './tools/prewarm.js';
@@ -84,7 +82,6 @@ state.canvas.addEventListener('mousemove', function(e) {
     if (state.mirrorMode) state.lastStrokePoints.push({x: state.canvasW-pos[0], y: pos[1]});
   }
   state.lastX = pos[0]; state.lastY = pos[1];
-  if (window.__dockStrokeHit) window.__dockStrokeHit(e.clientX, e.clientY);
   riveDockStrokeHit(e.clientX, e.clientY);
 });
 
@@ -144,22 +141,9 @@ initBrushSlider();
 initColorPicker();
 initToolbar();
 initToolbarOverflow();
-initDragTools();
-initDock();
 initSettingsMenu();
 initRiveDock();
-
-var _dockModeToggle = document.getElementById('debug-dock-toggle');
-if (_dockModeToggle) {
-  // Apply whichever option is selected on load (default: rive)
-  document.body.setAttribute('data-dock', _dockModeToggle.value);
-  setRiveDockActive(_dockModeToggle.value === 'rive');
-
-  _dockModeToggle.addEventListener('change', function() {
-    document.body.setAttribute('data-dock', this.value);
-    setRiveDockActive(this.value === 'rive');
-  });
-}
+setRiveDockActive(true);
 
 if (window.requestIdleCallback) {
   requestIdleCallback(warmupTools, { timeout: 2000 });
