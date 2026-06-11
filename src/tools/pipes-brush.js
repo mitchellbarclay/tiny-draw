@@ -192,6 +192,7 @@ export function drawPipeStroke(x, y, col) {
   var r = Math.max(7, Math.round(state.brushSize*0.48));
   if (!state.pipeStroke) {
     state.pipeStroke = {r:r, col:col, gradStops:makePipeGradStops(col), threshold:r*14, startX:state.lastX, startY:state.lastY, anchors:[], liveX:x, liveY:y};
+    state.pipeStroke.commitTimer = setTimeout(finalizePipeStroke, 2000);
   }
   var ps = state.pipeStroke;
   ps.liveX = x; ps.liveY = y;
@@ -203,6 +204,7 @@ export function drawPipeStroke(x, y, col) {
 
 export function finalizePipeStroke() {
   if (!state.pipeStroke) return;
+  if (state.pipeStroke.commitTimer) { clearTimeout(state.pipeStroke.commitTimer); state.pipeStroke.commitTimer = null; }
   if (state.pipeAnimFrame) { cancelAnimationFrame(state.pipeAnimFrame); state.pipeAnimFrame = null; }
   var ps = state.pipeStroke; state.pipeStroke = null;
   var mps = state.mirrorPipeStroke; state.mirrorPipeStroke = null;
