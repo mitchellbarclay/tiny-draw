@@ -188,11 +188,39 @@ function pipeOverlayDraw() {
     drawPipeStrokeState(state.ovCtx,state.mirrorPipeStroke,state.mirrorPipeStroke.liveX,state.mirrorPipeStroke.liveY);
 }
 
+function _commitAndContinuePipe() {
+  if (!state.pipeStroke) return;
+  var ps = state.pipeStroke;
+  var mps = state.mirrorPipeStroke;
+  if (state.pipeAnimFrame) { cancelAnimationFrame(state.pipeAnimFrame); state.pipeAnimFrame = null; }
+
+  if (!state.painting || ps.anchors.length === 0) {
+    finalizePipeStroke();
+    return;
+  }
+
+  function _resetStroke(src) {
+    var ci = src.anchors.length - 1;
+    var carry = src.anchors[ci];
+    var prev = ci > 0 ? src.anchors[ci - 1] : {x: src.startX, y: src.startY};
+    var commitPs = {r:src.r, col:src.col, gradStops:src.gradStops, startX:src.startX, startY:src.startY, anchors:src.anchors.slice(0, ci)};
+    drawPipeStrokeState(state.ctx, commitPs, null, null);
+    return {r:src.r, col:src.col, gradStops:src.gradStops, threshold:src.threshold,
+            startX:prev.x, startY:prev.y, anchors:[{x:carry.x, y:carry.y}], liveX:src.liveX, liveY:src.liveY};
+  }
+
+  state.pipeStroke = _resetStroke(ps);
+  state.pipeStroke.commitTimer = setTimeout(_commitAndContinuePipe, 2000);
+  if (mps && mps.anchors.length > 0) state.mirrorPipeStroke = _resetStroke(mps);
+
+  state.pipeAnimFrame = requestAnimationFrame(pipeOverlayDraw);
+}
+
 export function drawPipeStroke(x, y, col) {
   var r = Math.max(7, Math.round(state.brushSize*0.48));
   if (!state.pipeStroke) {
     state.pipeStroke = {r:r, col:col, gradStops:makePipeGradStops(col), threshold:r*14, startX:state.lastX, startY:state.lastY, anchors:[], liveX:x, liveY:y};
-    state.pipeStroke.commitTimer = setTimeout(finalizePipeStroke, 2000);
+    state.pipeStroke.commitTimer = setTimeout(_commitAndContinuePipe, 2000);
   }
   var ps = state.pipeStroke;
   ps.liveX = x; ps.liveY = y;
