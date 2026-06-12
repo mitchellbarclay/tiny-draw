@@ -1,6 +1,6 @@
 {
-  "name": "Drawing App",
-  "short_name": "Drawing App",
+  "name": "Scribblepix",
+  "short_name": "Scribblepix",
   "display": "standalone",
   "start_url": "/drawing-app.html",
   "icons": [

@@ -48,6 +48,7 @@ export function initSettingsMenu() {
   function openPanel() {
     btn.classList.remove('holding');
     body.style.height = ''; // clear any stale height from a previous animation
+    body.classList.add('settled');
     overlay.classList.add('visible');
     panel.classList.add('visible');
     requestAnimationFrame(() => placePill(panel.querySelector('.stab.active'), false));
@@ -96,6 +97,8 @@ export function initSettingsMenu() {
 
       if (fromH === toH) return; // nothing to animate
 
+      body.classList.remove('settled');
+
       // Pin to fromH (synchronous, no paint frame yet), then animate to toH.
       body.style.height = fromH + 'px';
 
@@ -105,6 +108,7 @@ export function initSettingsMenu() {
         heightCleanup = e => {
           if (e.propertyName !== 'height') return;
           body.style.height = '';
+          body.classList.add('settled');
           body.removeEventListener('transitionend', heightCleanup);
           heightCleanup = null;
         };
