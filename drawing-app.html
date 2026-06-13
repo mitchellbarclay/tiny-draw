@@ -64,7 +64,7 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #save-btn { background: #4ec18c; border: 4px solid rgba(255,255,255,0.85); border-radius: 50%; width: 50px; height: 50px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; user-select: none; color: white; transition: background 0.12s, transform 0.1s; box-shadow: 0 3px 8px rgba(0,0,0,0.18); }
 #save-btn:hover { background: #45b380; }
 #save-btn:active { transform: scale(0.92); }
-#canvas-area { flex: 1; background: #ffffff; overflow: hidden; position: relative; min-width: 0; }
+#canvas-area { flex: 1; background: #ffffff; overflow: hidden; position: relative; min-width: 0; margin: 12px; border-radius: 24px; box-shadow: 0 6px 20px rgba(0,0,0,0.10); }
 #resize-overlay { display: none; position: absolute; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; color: #1a1a2e; font-family: 'Fredoka', sans-serif; font-size: 20px; letter-spacing: 0.02em; }
 #canvas-area.resizing #resize-overlay { display: flex; }
 #mini-browser { width: 180px; height: 130px; background: #ffffff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; transition: width 0.18s ease, height 0.18s ease; }
