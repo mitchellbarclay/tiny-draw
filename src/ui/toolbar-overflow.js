@@ -58,13 +58,10 @@ function goToK(nk, animate = true) {
 function relayout() {
   total = tools().length;
   const pillH = toolPill.clientHeight;
-  // How many whole tools fit if the pin is hidden. N buttons need
-  // N*BTN + (N-1)*GAP = N*PITCH - GAP px (plus the viewport's 2*PAD).
-  let N = Math.floor((pillH - 2 * PAD + GAP) / PITCH);
-  if (N < total) {
-    // Overflow → the pin will show and eat space, so recompute with it reserved.
-    N = Math.floor((pillH - PIN_RESERVE - 2 * PAD + GAP) / PITCH);
-  }
+  // The active-tool pin is always shown now, so always reserve its space.
+  // N buttons need N*BTN + (N-1)*GAP = N*PITCH - GAP px (plus the viewport's
+  // 2*PAD), atop the reserved pin height.
+  let N = Math.floor((pillH - PIN_RESERVE - 2 * PAD + GAP) / PITCH);
   visibleN = clamp(N, 1, total);
   maxK = Math.max(0, total - visibleN);
   const contentH = visibleN * BTN + (visibleN - 1) * GAP;
@@ -74,9 +71,9 @@ function relayout() {
 
 export function updateActiveToolPin() {
   const activeBtn = document.querySelector('.tool-btn.active');
-  // Pin is shown whenever the palette overflows (is scrollable), a consistent
-  // anchor for the current tool. Hidden when every tool fits without scrolling.
-  if (!activeBtn || maxK === 0) {
+  // The pin always shows the current tool, a consistent anchor at the top of
+  // the rail regardless of whether the palette is scrollable.
+  if (!activeBtn) {
     pinEl.classList.remove('visible');
     toolPill.classList.remove('pin-active');
     return;
