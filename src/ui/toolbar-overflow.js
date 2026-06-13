@@ -65,9 +65,14 @@ function relayout() {
   //   left-rail column: [pin][gap][viewport] (tool-pill) [gap] [brush]
   const railInner = leftRail.clientHeight - RAIL_PAD * 2;
   const pinH = pinEl.offsetHeight || 70;
-  const avail = railInner - pinH - RAIL_GAP /*pin↔list*/ - RAIL_GAP /*list↔brush*/ - BRUSH_MIN;
+  // Space below the pin, shared by the tool list and the brush slider.
+  const free = railInner - pinH - RAIL_GAP /*pin↔list*/ - RAIL_GAP /*list↔brush*/;
+  // Aim the tool list at ~65% and let the brush flex-grow into the ~35%
+  // remainder — the inverse of the right rail's 35/65 modifier/base split.
+  // Snapping to whole slots means the brush absorbs the rounding slack too.
+  const toolBudget = free * 0.65;
   // N buttons need N*BTN + (N-1)*GAP = N*PITCH - GAP px (plus the viewport's 2*PAD).
-  let N = Math.floor((avail - 2 * PAD + GAP) / PITCH);
+  let N = Math.floor((toolBudget - 2 * PAD + GAP) / PITCH);
   visibleN = clamp(N, 1, total);
   maxK = Math.max(0, total - visibleN);
   const contentH = visibleN * BTN + (visibleN - 1) * GAP;
