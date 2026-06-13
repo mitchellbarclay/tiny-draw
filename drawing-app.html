@@ -55,12 +55,15 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #mirror-toggle:active { transform: scale(0.92); }
 #mirror-toggle.active:active { transform: scale(1.02); }
 .mir { font-family: 'Material Symbols Outlined'; font-size: 22px; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; text-transform: none; letter-spacing: normal; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-#color-track { width: calc(100% - 14px); flex: 1 1 55%; min-height: 0; position: relative; border-radius: 26px; background: linear-gradient(to bottom, #ffffff 0%, #ff5fa2 10%, #c43dff 22%, #6f5fff 34%, #3fa6ff 47%, #3fff8a 60%, #ffe53f 73%, #ff7f3f 83%, #ff3f3f 92%, #2a1018 100%); box-shadow: inset 0 2px 8px rgba(0,0,0,0.22); }
-#color-handle { position: absolute; left: 0; right: 0; height: 88px; background: #ecf0f1; border-radius: 26px; cursor: grab; box-shadow: 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); user-select: none; touch-action: none; transition: box-shadow 0.14s; display: flex; align-items: center; justify-content: center; }
-#color-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 3px 10px rgba(0,0,0,0.40), inset 0 0 0 2px rgba(255,255,255,0.55); }
-#color-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); }
-#color-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
-#color-handle.anim-release { animation: sliderRelease 0.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+#color-swatch { width: calc(100% - 14px); aspect-ratio: 1; flex: 0 0 auto; border-radius: 22px; background: #3fbce5; box-shadow: 0 3px 10px rgba(0,0,0,0.22), inset 0 0 0 3px rgba(255,255,255,0.7); transition: background 0.12s; }
+#mod-track { width: calc(100% - 14px); flex: 0 0 26%; min-height: 60px; position: relative; border-radius: 26px; background: linear-gradient(to bottom, #ffffff, #3fbce5 50%, #18708c); box-shadow: inset 0 2px 8px rgba(0,0,0,0.22); }
+#color-track { width: calc(100% - 14px); flex: 1 1 auto; min-height: 0; position: relative; border-radius: 26px; background: linear-gradient(to bottom, #ffffff 0%, #ff5fa2 10%, #c43dff 22%, #6f5fff 34%, #3fa6ff 47%, #3fff8a 60%, #ffe53f 73%, #ff7f3f 83%, #ff3f3f 92%, #2a1018 100%); box-shadow: inset 0 2px 8px rgba(0,0,0,0.22); }
+#color-handle, #mod-handle { position: absolute; left: 0; right: 0; height: 88px; background: #ecf0f1; border-radius: 26px; cursor: grab; box-shadow: 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); user-select: none; touch-action: none; transition: box-shadow 0.14s; display: flex; align-items: center; justify-content: center; }
+#mod-handle { height: 66px; }
+#color-handle:hover, #mod-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 3px 10px rgba(0,0,0,0.40), inset 0 0 0 2px rgba(255,255,255,0.55); }
+#color-handle.grabbing, #mod-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); }
+#color-handle.anim-press, #mod-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
+#color-handle.anim-release, #mod-handle.anim-release { animation: sliderRelease 0.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
 #save-btn { background: #4ec18c; border: 4px solid rgba(255,255,255,0.85); border-radius: 50%; width: 50px; height: 50px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; user-select: none; color: white; transition: background 0.12s, transform 0.1s; box-shadow: 0 3px 8px rgba(0,0,0,0.18); }
 #save-btn:hover { background: #45b380; }
 #save-btn:active { transform: scale(0.92); }
@@ -80,8 +83,8 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #brush-preview { border-radius: 50%; background: #333; width: 12px; height: 12px; transition: width 0.12s ease-out, height 0.12s ease-out, background 0.12s; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 #brush-grip { width: 12px; height: 12px; flex-shrink: 0; position: relative; pointer-events: none; }
 #brush-grip::before { content: ''; position: absolute; left: 0; top: 0; width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.22); box-shadow: 8px 0 0 rgba(0,0,0,0.22), 0 8px 0 rgba(0,0,0,0.22), 8px 8px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(255,255,255,0.45), 9px 1px 0 rgba(255,255,255,0.45), 1px 9px 0 rgba(255,255,255,0.45), 9px 9px 0 rgba(255,255,255,0.45); }
-#color-handle::after { content: ''; position: absolute; left: calc(50% - 6px); top: calc(50% - 10px); width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.22); box-shadow: 8px 0 0 rgba(0,0,0,0.22), 0 8px 0 rgba(0,0,0,0.22), 8px 8px 0 rgba(0,0,0,0.22), 0 16px 0 rgba(0,0,0,0.22), 8px 16px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(255,255,255,0.45), 9px 1px 0 rgba(255,255,255,0.45), 1px 9px 0 rgba(255,255,255,0.45), 9px 9px 0 rgba(255,255,255,0.45), 1px 17px 0 rgba(255,255,255,0.45), 9px 17px 0 rgba(255,255,255,0.45); pointer-events: none; }
-#slider-handle.jumping, #color-handle.jumping { transition: top 0.18s cubic-bezier(0.34,1.4,0.64,1); }
+#color-handle::after, #mod-handle::after { content: ''; position: absolute; left: calc(50% - 6px); top: calc(50% - 10px); width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.22); box-shadow: 8px 0 0 rgba(0,0,0,0.22), 0 8px 0 rgba(0,0,0,0.22), 8px 8px 0 rgba(0,0,0,0.22), 0 16px 0 rgba(0,0,0,0.22), 8px 16px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(255,255,255,0.45), 9px 1px 0 rgba(255,255,255,0.45), 1px 9px 0 rgba(255,255,255,0.45), 9px 9px 0 rgba(255,255,255,0.45), 1px 17px 0 rgba(255,255,255,0.45), 9px 17px 0 rgba(255,255,255,0.45); pointer-events: none; }
+#slider-handle.jumping, #color-handle.jumping, #mod-handle.jumping { transition: top 0.18s cubic-bezier(0.34,1.4,0.64,1); }
 #slider-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 3px 10px rgba(0,0,0,0.45); }
 #slider-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.28); }
 @keyframes sliderPressDown { 0%{transform:scaleX(1) scaleY(1)} 40%{transform:scaleX(1.15) scaleY(0.88)} 70%{transform:scaleX(0.94) scaleY(1.06)} 100%{transform:scaleX(1) scaleY(1)} }
@@ -257,6 +260,10 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 </div>
 
 <div id="right-rail">
+  <div id="color-swatch"></div>
+  <div id="mod-track">
+    <div id="mod-handle"></div>
+  </div>
   <div id="color-track">
     <div id="color-handle"></div>
   </div>
