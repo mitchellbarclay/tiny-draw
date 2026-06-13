@@ -12,10 +12,7 @@ var _undoBusy = false;
 var _fillBusy = false;
 var _bound = false;
 var _riveCapturing = false; // true while a dock tool drag is in progress
-var _dockAtTop = false;
-var _lastFlipAt = 0;
-var _bottomDefault = null; // initial bottomPlacement captured after Rive loads
-var DOCK_EDGE = 18;
+var _strokeFaded = false;  // dock faded out because the current stroke crossed it
 var _mirrorBool = null;   // polled each Advance frame to sync mirror state
 
 export function initRiveDock() {
@@ -227,10 +224,6 @@ function _bindViewModels() {
 
   _pushCanvasSize();
 
-  // Capture initial bottomPlacement so we know the "dock at bottom" value
-  var bpInit = _dockVM.number('bottomPlacement');
-  if (bpInit) _bottomDefault = bpInit.value;
-
   var effectTriggerNames = { tornado: 'wipe', dynamite: 'explode', fill: 'fill', undo: 'undo' };
 
   ['tornado', 'dynamite', 'fill', 'undo'].forEach(function(name) {
@@ -343,32 +336,28 @@ function _hexToArgb(hex) {
   return ((0xFF << 24) | (r << 16) | (g << 8) | b) >>> 0;
 }
 
-// ── Dock vertical flip — triggered when a stroke passes through the dock area ──
+// ── Dock fade — when a stroke passes through the dock area, fade the dock out
+// for the rest of the stroke instead of moving it (repositioning broke on
+// device rotation). riveDockStrokeEnd() restores it on stroke end.
 
 export function riveDockStrokeHit(cx, cy) {
-  if (!_active || !_dockVM) return;
-  if (Date.now() - _lastFlipAt < 480) return;
+  if (!_active || !_dockVM || _strokeFaded) return;
   var canvas = document.getElementById('rive-dock-canvas');
   if (!canvas) return;
   var rect = canvas.getBoundingClientRect();
   var px = cx - rect.left;
   var py = cy - rect.top;
-  if (_isInDock(px, py)) _flipDockVertical();
+  if (_isInDock(px, py)) {
+    _strokeFaded = true;
+    canvas.style.opacity = '0';
+  }
 }
 
-function _flipDockVertical() {
-  if (!_dockVM) return;
-  _dockAtTop = !_dockAtTop;
-  _lastFlipAt = Date.now();
-  var bpProp = _dockVM.number('bottomPlacement');
-  var dhProp = _dockVM.number('dockH');
-  if (!bpProp) return;
-  if (_dockAtTop) {
-    var dh = dhProp ? dhProp.value : 80;
-    bpProp.value = state.canvasH - dh - DOCK_EDGE;
-  } else {
-    bpProp.value = _bottomDefault !== null ? _bottomDefault : DOCK_EDGE;
-  }
+export function riveDockStrokeEnd() {
+  if (!_strokeFaded) return;
+  _strokeFaded = false;
+  var canvas = document.getElementById('rive-dock-canvas');
+  if (canvas) canvas.style.opacity = '';
 }
 
 function _fireEffect(toolName, dropX, dropY) {
@@ -402,6 +391,7 @@ var TORNADO_ARTBOARD_H = 820;
 
 function _doTornadoWipe() {
   saveHistory();
+  state.effectBusy++;
   state.lastStrokePoints = null;
   var w = state.canvasW, h = state.canvasH;
   var maxClearX = 0; // one-way ratchet — cleared region only grows
@@ -427,6 +417,7 @@ function _doTornadoWipe() {
     if (maxClearX >= w) {
       // Canvas fully cleared — final fill guarantees no stray pixels
       state.ctx.fillRect(0, 0, w, h);
+      state.effectBusy--;
     } else {
       requestAnimationFrame(animWipe);
     }
@@ -439,6 +430,7 @@ function _doTornadoWipe() {
 function _doFill(dropX, dropY) {
   if (_fillBusy) return;
   _fillBusy = true;
+  state.effectBusy++;
   saveHistory();
   state.lastStrokePoints = null;
   var fc = state.rainbowMode ? 'hsl(' + Math.floor(Math.random() * 360) + ',100%,50%)' : state.color;
@@ -449,6 +441,7 @@ function _doFill(dropX, dropY) {
   // doing a second synchronous GPU readback of the whole canvas.
   progressiveFloodFill(sx, sy, rgb, function() {
     _fillBusy = false;
+    state.effectBusy--;
   }, state.undoSnapshot);
 }
 
@@ -458,7 +451,9 @@ function _doUndo() {
   if (_undoBusy || !state.undoSnapshot) return;
   if (state.undoSnapshot.width !== state.canvas.width || state.undoSnapshot.height !== state.canvas.height) return;
   _undoBusy = true;
+  state.effectBusy++;
   undoMagic(function() {
+    state.effectBusy--;
     setTimeout(function() { _undoBusy = false; }, 180);
   });
 }
@@ -496,6 +491,7 @@ var WARP_R = 250; // CSS px radius of the permanent pixel warp
 
 function _doAlienBlast(dropX, dropY) {
   saveHistory();
+  state.effectBusy++;
   state.lastStrokePoints = null;
 
   var scheme   = _ALIEN_SCHEMES[Math.floor(Math.random() * _ALIEN_SCHEMES.length)];
@@ -792,6 +788,7 @@ function _doAlienBlast(dropX, dropY) {
       requestAnimationFrame(frame);
     } else {
       state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+      state.effectBusy--;
     }
   }
   requestAnimationFrame(frame);

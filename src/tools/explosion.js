@@ -44,6 +44,7 @@ function makeCirclePoly(cx, cy, r) {
 
 export function doBoom(cx, cy) {
   saveHistory();
+  state.effectBusy++;
   state.lastStrokePoints = null;
   var baseR = 440 + Math.random()*80;
 
@@ -148,7 +149,10 @@ export function doBoom(cx, cy) {
       } else { alive = true; }
     }
     if (alive && ++frame < 120) requestAnimationFrame(animBoom);
-    else state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+    else {
+      state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+      state.effectBusy--;
+    }
   }
   animBoom();
 }

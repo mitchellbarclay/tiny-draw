@@ -74,30 +74,13 @@ export function initToolbar() {
   });
 
   var saveBtn = document.getElementById('save-btn');
-  var saveHoldTimer = null;
-  var SAVE_HOLD_MS = 600;
-
-  function startSaveHold(e) {
-    e.preventDefault();
-    clearTimeout(saveHoldTimer);
-    saveBtn.classList.add('holding');
-    saveHoldTimer = setTimeout(function() {
-      saveBtn.classList.remove('holding');
-      saveDrawing();
-    }, SAVE_HOLD_MS);
-  }
-
-  function cancelSaveHold() {
-    clearTimeout(saveHoldTimer);
-    saveBtn.classList.remove('holding');
-  }
 
   // On touch devices, hand the PNG to the native share sheet so "Save Image"
   // puts it straight in the photo library (a web app can't write there
   // directly, and a download link makes iPad Safari offer "Open in Preview").
-  // Everything here stays synchronous: WebKit only carries the user-gesture
-  // token through the hold timer into this tick, and navigator.share refuses
-  // to open without it. Desktop (fine pointer) keeps the plain download.
+  // Everything stays synchronous inside the click handler so WebKit's
+  // user-gesture token is live when navigator.share is called.
+  // Desktop (fine pointer) keeps the plain download.
   function saveDrawing() {
     var dataUrl = state.canvas.toDataURL('image/png');
     var wantShare = navigator.share && window.matchMedia('(pointer: coarse)').matches;
@@ -117,9 +100,6 @@ export function initToolbar() {
     a.click();
   }
 
-  saveBtn.addEventListener('pointerdown', startSaveHold);
-  saveBtn.addEventListener('pointerup', cancelSaveHold);
-  saveBtn.addEventListener('pointercancel', cancelSaveHold);
-  saveBtn.addEventListener('pointerleave', cancelSaveHold);
+  saveBtn.addEventListener('click', saveDrawing);
   saveBtn.addEventListener('contextmenu', function(e) { e.preventDefault(); });
 }

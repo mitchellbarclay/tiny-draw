@@ -15,7 +15,7 @@ import { initColorPicker, onColorMove, onColorRelease } from './ui/color-picker.
 import { initBrushSlider, onSliderMove, onSliderRelease } from './ui/brush-slider.js';
 import { initToolbar, hideRectSubmenu, hideEllipseSubmenu } from './ui/toolbar.js';
 import { initToolbarOverflow } from './ui/toolbar-overflow.js';
-import { initRiveDock, setRiveDockActive, riveDockStrokeHit } from './ui/rive-dock.js';
+import { initRiveDock, setRiveDockActive, riveDockStrokeHit, riveDockStrokeEnd } from './ui/rive-dock.js';
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { warmupTools } from './tools/prewarm.js';
 
@@ -44,6 +44,9 @@ function clearBrushPreview() {
 }
 
 state.canvas.addEventListener('mousedown', function(e) {
+  // No drawing while a dock effect (fill, dynamite, tornado, alien, undo) is
+  // animating — concurrent strokes get eaten by the effect's canvas writes.
+  if (state.effectBusy > 0) return;
   if (state.tool === 'rect') hideRectSubmenu();
   if (state.tool === 'ellipse') hideEllipseSubmenu();
   var pos = getPos(e), x = pos[0], y = pos[1];
@@ -90,6 +93,7 @@ state.canvas.addEventListener('mouseup', function() {
   finalizeVineStrokeV2(); finalizeFlowerStroke(); finalizeBoltStroke(); finalizeFireStroke();
   finalizeRectStroke(); finalizeEllipseStroke(); finalizePipeStroke(); finalizeThreeStroke();
   clearBrushPreview();
+  riveDockStrokeEnd();
 });
 
 state.canvas.addEventListener('mouseleave', function() {
@@ -97,6 +101,7 @@ state.canvas.addEventListener('mouseleave', function() {
   finalizeVineStrokeV2(); finalizeFlowerStroke(); finalizeBoltStroke(); finalizeFireStroke();
   cancelRectStroke(); cancelEllipseStroke(); finalizePipeStroke(); finalizeThreeStroke();
   clearBrushPreview();
+  riveDockStrokeEnd();
 });
 
 // Touch → mouse passthrough
@@ -125,6 +130,7 @@ window.addEventListener('mouseup', function() {
   finalizeBoltStroke();
   onSliderRelease();
   onColorRelease();
+  riveDockStrokeEnd();
 });
 window.addEventListener('touchmove', function(e) {
   if (!e.touches.length) return;

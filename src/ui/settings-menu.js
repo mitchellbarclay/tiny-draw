@@ -1,5 +1,3 @@
-const HOLD_MS = 600;
-
 export function initSettingsMenu() {
   const btn = document.getElementById('settings-btn');
   const overlay = document.getElementById('settings-overlay');
@@ -10,27 +8,9 @@ export function initSettingsMenu() {
   const pages = panel.querySelectorAll('.spage');
   const closeBtn = panel.querySelector('.spanel-close');
 
-  let holdTimer = null;
   let heightCleanup = null;
 
-  // ── Hold-to-open ──────────────────────────────────────────────────────────
-
-  function startHold(e) {
-    e.preventDefault();
-    clearTimeout(holdTimer);
-    btn.classList.add('holding');
-    holdTimer = setTimeout(openPanel, HOLD_MS);
-  }
-
-  function cancelHold() {
-    clearTimeout(holdTimer);
-    btn.classList.remove('holding');
-  }
-
-  btn.addEventListener('pointerdown', startHold);
-  btn.addEventListener('pointerup', cancelHold);
-  btn.addEventListener('pointercancel', cancelHold);
-  btn.addEventListener('pointerleave', cancelHold);
+  btn.addEventListener('click', () => openPanel());
   btn.addEventListener('contextmenu', e => e.preventDefault());
 
   // ── Pill ──────────────────────────────────────────────────────────────────
@@ -46,7 +26,6 @@ export function initSettingsMenu() {
   // ── Open / close ──────────────────────────────────────────────────────────
 
   function openPanel() {
-    btn.classList.remove('holding');
     body.style.height = ''; // clear any stale height from a previous animation
     body.classList.add('settled');
     overlay.classList.add('visible');

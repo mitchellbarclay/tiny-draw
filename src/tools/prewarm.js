@@ -14,7 +14,14 @@ export function warmupTools() {
   // Invisible draw pass on both contexts — forces the browser to warm up the
   // GPU compositing pipelines (texture upload, gradient shader, shadow filter,
   // clip path) so the first real user stroke doesn't pay the cold-start cost.
+  //
+  // globalAlpha 0 should make all of it invisible, but iPad WebKit's shadow
+  // pass can leak a few dark pixels at the top-left corner. Snapshot the
+  // corner first and restore it after — pixel-perfect whatever the browser
+  // does. 256 physical px covers the largest draw (the brush stamp) at DPR 2.
+  var GUARD = 256;
   [ctx, ovCtx].forEach(function(c) {
+    var guard = c.getImageData(0, 0, GUARD, GUARD);
     c.save();
     c.globalAlpha = 0;
 
@@ -39,5 +46,6 @@ export function warmupTools() {
     c.shadowBlur = 0;
 
     c.restore();
+    c.putImageData(guard, 0, 0);
   });
 }

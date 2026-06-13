@@ -30,6 +30,10 @@ const state = {
   rainbowHue: 0,
   fillTolerance: 32,
 
+  // Dock effect lockout — >0 while a dock effect (fill, dynamite, tornado,
+  // alien, undo) is animating; canvas mousedown ignores strokes during it
+  effectBusy: 0,
+
   // Stroke tracking
   painting: false,
   lastX: 0,

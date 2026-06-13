@@ -64,7 +64,6 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #save-btn { background: #4ec18c; border: 4px solid rgba(255,255,255,0.85); border-radius: 50%; width: 50px; height: 50px; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; user-select: none; color: white; transition: background 0.12s, transform 0.1s; box-shadow: 0 3px 8px rgba(0,0,0,0.18); }
 #save-btn:hover { background: #45b380; }
 #save-btn:active { transform: scale(0.92); }
-#save-btn.holding .settings-ring-fill { stroke-dashoffset: 0; transition: stroke-dashoffset 600ms linear; }
 #canvas-area { flex: 1; background: #ffffff; overflow: hidden; position: relative; min-width: 0; }
 #resize-overlay { display: none; position: absolute; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; color: #1a1a2e; font-family: 'Fredoka', sans-serif; font-size: 20px; letter-spacing: 0.02em; }
 #canvas-area.resizing #resize-overlay { display: flex; }
@@ -112,18 +111,13 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #settings-btn:active { transform: scale(0.92); }
 #settings-btn .settings-cog { font-size: 22px; position: relative; z-index: 1; transition: transform 0.6s cubic-bezier(0.34,1.56,0.64,1); display: inline-block; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 #settings-btn:hover .settings-cog { transform: rotate(60deg); }
-#settings-btn.holding .settings-cog { transform: rotate(360deg); transition: transform 600ms linear; }
-.settings-ring { position: absolute; top: -11px; left: -11px; width: 64px; height: 64px; transform: rotate(-90deg); pointer-events: none; overflow: visible; }
-.settings-ring-track { fill: none; stroke: rgba(255,255,255,0.18); stroke-width: 2.5; }
-.settings-ring-fill { fill: none; stroke: rgba(255,255,255,0.90); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 176; stroke-dashoffset: 176; transition: stroke-dashoffset 0s; }
-#settings-btn.holding .settings-ring-fill { stroke-dashoffset: 0; transition: stroke-dashoffset 600ms linear; }
 
 /* ── Settings overlay ────────────────────────────────────────────────────── */
 #settings-overlay { position: fixed; inset: 0; z-index: 900; background: rgba(8,8,24,0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
 #settings-overlay.visible { opacity: 1; pointer-events: auto; }
 
 /* ── Rive dock ───────────────────────────────────────────────────────────── */
-#rive-dock-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 200; }
+#rive-dock-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 200; transition: opacity 0.22s ease; }
 #canvas-area.resizing #rive-dock-canvas { display: none; }
 
 /* ── Settings panel ──────────────────────────────────────────────────────── */
@@ -198,18 +192,10 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
     </div>
   </div>
   <button id="mirror-toggle" title="Mirror" style="display:none"><img src="custom-icons/Mirror.svg" alt="Mirror"></button>
-  <button id="settings-btn" title="Hold for settings">
-    <svg class="settings-ring" viewBox="0 0 64 64" aria-hidden="true">
-      <circle class="settings-ring-track" cx="32" cy="32" r="28"/>
-      <circle class="settings-ring-fill" cx="32" cy="32" r="28"/>
-    </svg>
+  <button id="settings-btn" title="Settings">
     <span class="mir settings-cog">settings</span>
   </button>
-  <button id="save-btn" title="Hold to save">
-    <svg class="settings-ring" viewBox="0 0 64 64" aria-hidden="true">
-      <circle class="settings-ring-track" cx="32" cy="32" r="28"/>
-      <circle class="settings-ring-fill" cx="32" cy="32" r="28"/>
-    </svg>
+  <button id="save-btn" title="Save">
     <span class="mir" style="font-size:22px;">download</span>
   </button>
 </div>
