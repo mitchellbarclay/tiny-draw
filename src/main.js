@@ -137,9 +137,10 @@ window.addEventListener('mousemove', function(e) {
 });
 window.addEventListener('mouseup', function() {
   state.painting = false;
-  // Safety net: a release anywhere ends the bolt stroke, so its live tail can
-  // never be orphaned and left crackling on the overlay (idempotent if idle).
+  // Safety net: a release anywhere ends bolt/pipe strokes so their live tails
+  // can never be orphaned on the overlay (both are idempotent if idle).
   finalizeBoltStroke();
+  finalizePipeStroke();
   onSliderRelease();
   onColorRelease();
   riveDockStrokeEnd();
@@ -150,6 +151,9 @@ window.addEventListener('touchmove', function(e) {
   onColorMove(e.touches[0].clientY);
 }, {passive: false});
 window.addEventListener('touchend', function() {
+  // Safety net: iPadOS sometimes routes touchend to the window instead of the
+  // canvas element when the finger lifts over a foreign sibling (side rails).
+  finalizePipeStroke();
   onSliderRelease();
   onColorRelease();
 });
