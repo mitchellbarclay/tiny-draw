@@ -59,18 +59,14 @@ function goToK(nk, animate = true) {
 // Size the viewport to a whole number of tool slots based on available height.
 function relayout() {
   total = tools().length;
-  // The tool list takes a whole number of slots; the brush slider (flex-grow)
-  // fills whatever's left, so we size against the rail's free height with the
-  // always-shown pin and a brush minimum reserved out of it.
+  // Allocate 65% of the total rail interior to the tool section (pin + gaps +
+  // viewport); the slider (flex: 1 1 auto) claims the remaining ≥35%.
+  // Subtracting the always-shown pin and the two inter-element gaps from the
+  // 65% bucket gives the pixel budget for the scroll viewport itself.
   //   left-rail column: [pin][gap][viewport] (tool-pill) [gap] [brush]
   const railInner = leftRail.clientHeight - RAIL_PAD * 2;
   const pinH = pinEl.offsetHeight || 70;
-  // Space below the pin, shared by the tool list and the brush slider.
-  const free = railInner - pinH - RAIL_GAP /*pin↔list*/ - RAIL_GAP /*list↔brush*/;
-  // Aim the tool list at ~65% and let the brush flex-grow into the ~35%
-  // remainder — the inverse of the right rail's 35/65 modifier/base split.
-  // Snapping to whole slots means the brush absorbs the rounding slack too.
-  const toolBudget = free * 0.65;
+  const toolBudget = railInner * 0.65 - pinH - 2 * RAIL_GAP;
   // N buttons need N*BTN + (N-1)*GAP = N*PITCH - GAP px (plus the viewport's 2*PAD).
   let N = Math.floor((toolBudget - 2 * PAD + GAP) / PITCH);
   visibleN = clamp(N, 1, total);
@@ -165,6 +161,5 @@ export function initToolbarOverflow() {
     }
   }, { passive: false });
 
-  window.addEventListener('resize', relayout);
-  requestAnimationFrame(relayout);
+  new ResizeObserver(relayout).observe(leftRail);
 }
