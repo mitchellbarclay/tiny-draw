@@ -158,13 +158,13 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 .sabout-footer { text-align: center; font-size: 12px; color: rgba(26,26,46,0.32); font-weight: 500; letter-spacing: 0.02em; }
 
 /* ── Splash screen ───────────────────────────────────────────────────────── */
-#splash-screen { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f1a28 0%, #1a2e3a 50%, #101e2c 100%); transition: opacity 0.38s ease, transform 0.38s ease; transform-origin: center; }
+#splash-screen { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f1a28 0%, #1a2e3a 50%, #101e2c 100%); transition: opacity 0.38s ease, transform 0.38s ease; transform-origin: center; overflow: hidden; }
 #splash-screen.hiding { opacity: 0; transform: scale(1.04); pointer-events: none; }
 .splash-blob { position: absolute; border-radius: 50%; pointer-events: none; }
 .sb1 { width: 380px; height: 380px; background: radial-gradient(circle, rgba(63,166,255,0.22) 0%, transparent 70%); top: -100px; left: -100px; }
 .sb2 { width: 320px; height: 320px; background: radial-gradient(circle, rgba(255,95,162,0.20) 0%, transparent 70%); bottom: -80px; right: -80px; }
 .sb3 { width: 260px; height: 260px; background: radial-gradient(circle, rgba(63,255,138,0.14) 0%, transparent 70%); bottom: 30%; left: -80px; }
-#splash-content { display: flex; flex-direction: column; align-items: center; width: 100%; padding: 40px 24px; position: relative; z-index: 1; }
+#splash-content { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; padding: 0 24px; }
 #splash-logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 52px; opacity: 0.7; }
 #splash-logo-img { width: 34px; height: 34px; }
 #splash-logo-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 22px; color: rgba(255,255,255,0.90); letter-spacing: 0.03em; }
@@ -173,11 +173,31 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #splash-draw-icon { font-size: 84px; line-height: 1; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 48; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.22)); }
 #splash-draw-label { font-size: 30px; font-weight: 700; letter-spacing: 0.02em; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.22); }
 @keyframes splashFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.025); } }
-#splash-secondary { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+#splash-secondary { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 28px; }
 .splash-sec-btn { display: flex; align-items: center; gap: 7px; padding: 11px 17px; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; color: rgba(255,255,255,0.60); font-family: 'Fredoka', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s; }
 .splash-sec-btn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.32); }
 .splash-sec-btn:active { transform: scale(0.94); }
 .splash-sec-btn .mir { font-size: 16px; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; color: rgba(255,255,255,0.45); }
+#splash-blurb { font-family: 'Fredoka', sans-serif; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.32); text-align: center; max-width: 300px; line-height: 1.55; }
+
+/* ── Install popup ── */
+#splash-install-popup { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.42); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.24s ease; }
+#splash-install-popup.visible { opacity: 1; pointer-events: auto; }
+.sip-card { width: min(380px, 100%); background: rgba(15,24,36,0.97); border: 1.5px solid rgba(255,255,255,0.11); border-radius: 28px; padding: 22px 22px 24px; max-height: calc(100vh - 80px); overflow-y: auto; box-shadow: 0 24px 72px rgba(0,0,0,0.55); }
+.sip-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.sip-title { font-family: 'Fredoka', sans-serif; font-size: 18px; font-weight: 600; color: rgba(255,255,255,0.88); letter-spacing: 0.01em; }
+.sip-close { width: 30px; height: 30px; border-radius: 50%; border: none; background: rgba(255,255,255,0.10); cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.60); transition: background 0.15s, color 0.15s; flex-shrink: 0; }
+.sip-close:hover { background: rgba(255,255,255,0.18); color: rgba(255,255,255,0.90); }
+.sip-close .mir { font-size: 16px; }
+.sip-tabs { display: flex; background: rgba(255,255,255,0.07); border-radius: 14px; padding: 3px; margin-bottom: 16px; }
+.sip-tab { flex: 1; border: none; padding: 9px; border-radius: 11px; background: transparent; cursor: pointer; font-family: 'Fredoka', sans-serif; font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.45); transition: color 0.20s ease, background 0.20s ease; letter-spacing: 0.01em; }
+.sip-tab.active { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.92); }
+.sip-page { display: none; flex-direction: column; gap: 10px; }
+.sip-page.active { display: flex; }
+.sip-step { display: flex; align-items: center; gap: 14px; background: rgba(255,255,255,0.06); border-radius: 16px; padding: 12px 14px; }
+.sip-step-text { flex: 1; min-width: 0; }
+.sip-step-label { font-family: 'Fredoka', sans-serif; font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.85); line-height: 1.2; margin-bottom: 2px; }
+.sip-step-desc { font-family: 'Fredoka', sans-serif; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.42); line-height: 1.4; }
 
 /* iPad instructions page */
 .sipad-title { font-size: 16px; font-weight: 500; color: rgba(26,26,46,0.65); margin-bottom: 14px; letter-spacing: 0.01em; }
@@ -394,6 +414,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
   <div class="splash-blob sb1"></div>
   <div class="splash-blob sb2"></div>
   <div class="splash-blob sb3"></div>
+
   <div id="splash-content">
     <div id="splash-logo-row">
       <img id="splash-logo-img" src="app-icons/logo-icon.svg" alt="">
@@ -405,8 +426,58 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
     </button>
     <div id="splash-secondary">
       <button class="splash-sec-btn" id="splash-open-btn"><span class="mir">image</span>Open image</button>
-      <button class="splash-sec-btn" id="splash-about-btn"><span class="mir">info</span>About</button>
       <button class="splash-sec-btn" id="splash-install-btn"><span class="mir">ios_share</span>Install app</button>
+    </div>
+    <p id="splash-blurb">A free, open space for kids to draw and create — no in-app purchases, no flashy game gimmicks. Just colour, imagination, and room to make something of your own.</p>
+  </div>
+
+  <!-- Install popup -->
+  <div id="splash-install-popup">
+    <div class="sip-card">
+      <div class="sip-header">
+        <div class="sip-title">Add to your home screen</div>
+        <button class="sip-close" id="sip-close-btn"><span class="mir">close</span></button>
+      </div>
+      <div class="sip-tabs">
+        <button class="sip-tab active" data-sip-tab="ipad">iPad</button>
+        <button class="sip-tab" data-sip-tab="android">Android</button>
+      </div>
+      <div class="sip-page active" id="sip-page-ipad">
+        <div class="sip-step">
+          <div class="sipad-step-num s1"><span class="mir">language</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Open in Safari</div><div class="sip-step-desc">This app works best in Safari on your iPad.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s2"><span class="mir">ios_share</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Tap the Share button</div><div class="sip-step-desc">The box-with-arrow icon in Safari's toolbar.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s3"><span class="mir">add_box</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Tap "Add to Home Screen"</div><div class="sip-step-desc">Scroll down in the share sheet to find it.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s4"><span class="mir">check_circle</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Tap Add — you're done!</div><div class="sip-step-desc">The app opens full screen, just like a real app.</div></div>
+        </div>
+      </div>
+      <div class="sip-page" id="sip-page-android">
+        <div class="sip-step">
+          <div class="sipad-step-num s1"><span class="mir">public</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Open in Chrome</div><div class="sip-step-desc">This app works best in Chrome on Android.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s2"><span class="mir">more_vert</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Tap the three-dot menu</div><div class="sip-step-desc">In the top-right corner of Chrome.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s3"><span class="mir">add_to_home_screen</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">Tap "Add to Home screen"</div><div class="sip-step-desc">Then tap Add to confirm.</div></div>
+        </div>
+        <div class="sip-step">
+          <div class="sipad-step-num s4"><span class="mir">check_circle</span></div>
+          <div class="sip-step-text"><div class="sip-step-label">You're all set!</div><div class="sip-step-desc">The app opens full screen, just like a real app.</div></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
