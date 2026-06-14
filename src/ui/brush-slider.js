@@ -5,6 +5,7 @@ var sliderDragging = false;
 var sliderGrabY = 0;
 var sliderCachedTrackTop = 0, sliderCachedMaxTop = 0, sliderCachedHandleH = 0;
 var sliderRafScheduled = false, sliderPendingY = 0;
+var brushP = 0.5; // proportional handle position (0=top/max-brush, 1=bottom/min-brush)
 
 function cacheSliderRects() {
   var tr = sliderTrack.getBoundingClientRect();
@@ -27,14 +28,17 @@ function applyHandleTop(topPx) {
   var maxTop = sliderCachedMaxTop > 0 ? sliderCachedMaxTop : (sliderTrack.clientHeight - sliderHandle.offsetHeight);
   topPx = clamp(topPx, 0, maxTop);
   sliderHandle.style.top = topPx + 'px';
-  var pct = maxTop > 0 ? 1 - topPx/maxTop : 0.5;
+  brushP = maxTop > 0 ? topPx / maxTop : 0.5;
+  var pct = 1 - brushP;
   state.brushSize = Math.round(1 + pct*59);
   updateBrushPreview();
 }
 
 function initSlider() {
   cacheSliderRects();
-  applyHandleTop(sliderCachedMaxTop * 0.5);
+  // On first run brushP=0.5 so handle starts at 50%; subsequent resize calls
+  // restore the proportional position the user last set.
+  applyHandleTop(brushP * sliderCachedMaxTop);
 }
 
 function startSliderJumpDrag(clientY) {

@@ -105,6 +105,17 @@ state.canvas.addEventListener('mouseleave', function() {
   riveDockStrokeEnd();
 });
 
+// On iOS/iPadOS, touchcancel fires instead of touchend when the OS interrupts the
+// touch (system gesture, Pencil edge, notification). Without this, state.pipeStroke
+// (and any other in-flight brush state) stays live and re-commits on the next mouseup.
+state.canvas.addEventListener('touchcancel', function() {
+  state.painting = false;
+  finalizeVineStrokeV2(); finalizeFlowerStroke(); finalizeBoltStroke(); finalizeFireStroke();
+  cancelRectStroke(); cancelEllipseStroke(); finalizePipeStroke(); finalizeThreeStroke();
+  clearBrushPreview();
+  riveDockStrokeEnd();
+});
+
 // Touch → mouse passthrough
 state.canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();

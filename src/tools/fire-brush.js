@@ -2,8 +2,11 @@ import state from '../state.js';
 import { hexToRgb, rgbToHsl } from '../core/color-utils.js';
 
 var FIRE_SETTLE_MS = 300;
-var FIRE_SWEEP_REF = 8;
+// Sweep reference in px/ms so flame direction is consistent regardless of input
+// device event rate (Apple Pencil fires at ~240 Hz vs finger at ~60 Hz).
+var FIRE_SWEEP_REF = 0.5;
 var _FIRE_N = 32;
+var _fireLastT = 0;
 
 var FLAME_VARIANTS = [
   {pa:0.48,pb:1.60,wMul:0.90,hMul:1.15,asym: 0.12,curl:0.14,cFreq:1.3,cPhase:0.0,wob1:0.05,wob2:0.02,lPhase:0.6, rPhase:2.4},
@@ -163,6 +166,9 @@ function placeFlameStamp(x, y) {
 export function drawFireStroke(x, y) {
   var dx = x-state.lastX, dy = y-state.lastY;
   var dist = Math.hypot(dx, dy);
+  var now = performance.now();
+  var dt = Math.max(1, _fireLastT > 0 ? now - _fireLastT : 16);
+  _fireLastT = now;
   if (dist < 0.001) {
     state.fireVelX = 0; state.fireVelY = 0;
     state.fireHasPrev = true; state.firePrevX = x; state.firePrevY = y;
@@ -171,8 +177,10 @@ export function drawFireStroke(x, y) {
     if (!state.fireAnimFrame) state.fireAnimFrame = requestAnimationFrame(fireOverlayFrame);
     return;
   }
-  state.fireVelX = state.fireVelX*0.7+dx*0.3;
-  state.fireVelY = state.fireVelY*0.7+dy*0.3;
+  // Normalize by elapsed time so flame direction is the same at 60 Hz (finger/mouse)
+  // and 240 Hz (Apple Pencil) for equal physical stroke speed.
+  state.fireVelX = state.fireVelX*0.7+(dx/dt)*0.3;
+  state.fireVelY = state.fireVelY*0.7+(dy/dt)*0.3;
   var spacing = Math.max(2, state.brushSize*0.45);
   var firstOffset = spacing - state.fireDistAcc;
   if (firstOffset < 0) firstOffset = 0;
