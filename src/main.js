@@ -19,6 +19,7 @@ import { initRiveDock, setRiveDockActive, riveDockStrokeHit, riveDockStrokeEnd }
 import { initSettingsMenu } from './ui/settings-menu.js';
 import { initAppMenu, menuBtnStrokeHit, menuBtnStrokeEnd } from './ui/app-menu.js';
 import { warmupTools } from './tools/prewarm.js';
+import { initSplashScreen } from './ui/splash-screen.js';
 
 // Init DOM refs into state
 state.canvas = document.getElementById('c');
@@ -168,6 +169,7 @@ initSettingsMenu();
 initAppMenu();
 initRiveDock();
 setRiveDockActive(true);
+initSplashScreen();
 
 if (window.requestIdleCallback) {
   requestIdleCallback(warmupTools, { timeout: 2000 });
