@@ -1,6 +1,6 @@
 {
-  "name": "Scribblepix",
-  "short_name": "Scribblepix",
+  "name": "Tiny Draw",
+  "short_name": "Tiny Draw",
   "display": "standalone",
   "start_url": "/scribblepix/drawing-app.html",
   "icons": [

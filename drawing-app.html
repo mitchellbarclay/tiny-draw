@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Scribblepix</title>
+<title>Tiny Draw</title>
 <link rel="icon" type="image/svg+xml" href="app-icons/favicon.svg">
 <link rel="icon" type="image/png" sizes="64x64" href="app-icons/favicon-64x64.png">
 <link rel="apple-touch-icon" href="app-icons/apple-touch-icon.png">
@@ -158,27 +158,29 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 .sabout-footer { text-align: center; font-size: 12px; color: rgba(26,26,46,0.32); font-weight: 500; letter-spacing: 0.02em; }
 
 /* ── Splash screen ───────────────────────────────────────────────────────── */
-#splash-screen { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f1a28 0%, #1a2e3a 50%, #101e2c 100%); transition: opacity 0.38s ease, transform 0.38s ease; transform-origin: center; overflow: hidden; }
+#splash-screen { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: #c9effb; transition: opacity 0.38s ease, transform 0.38s ease; transform-origin: center; overflow: hidden; }
 #splash-screen.hiding { opacity: 0; transform: scale(1.04); pointer-events: none; }
-.splash-blob { position: absolute; border-radius: 50%; pointer-events: none; }
-.sb1 { width: 380px; height: 380px; background: radial-gradient(circle, rgba(63,166,255,0.22) 0%, transparent 70%); top: -100px; left: -100px; }
-.sb2 { width: 320px; height: 320px; background: radial-gradient(circle, rgba(255,95,162,0.20) 0%, transparent 70%); bottom: -80px; right: -80px; }
-.sb3 { width: 260px; height: 260px; background: radial-gradient(circle, rgba(63,255,138,0.14) 0%, transparent 70%); bottom: 30%; left: -80px; }
 #splash-content { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; padding: 0 24px; }
-#splash-logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; opacity: 0.7; }
-#splash-logo-img { width: 34px; height: 34px; }
-#splash-logo-name { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 22px; color: rgba(255,255,255,0.90); letter-spacing: 0.03em; }
-#splash-draw-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; width: min(300px, 72vw); padding: 38px 40px; border: none; border-radius: 40px; cursor: pointer; background: linear-gradient(145deg, #ff8533 0%, #ff4d8a 100%); box-shadow: 0 16px 56px rgba(255,80,100,0.50), 0 4px 20px rgba(0,0,0,0.35); color: white; font-family: 'Fredoka', sans-serif; animation: splashFloat 2.6s ease-in-out infinite; touch-action: manipulation; user-select: none; -webkit-tap-highlight-color: transparent; margin-bottom: 44px; }
-#splash-draw-btn:active { animation: none; transform: scale(0.91); box-shadow: 0 8px 28px rgba(255,80,100,0.38), 0 2px 10px rgba(0,0,0,0.28); transition: transform 0.10s ease, box-shadow 0.10s ease; }
-#splash-draw-icon { font-size: 84px; line-height: 1; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 48; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.22)); }
-#splash-draw-label { font-size: 30px; font-weight: 700; letter-spacing: 0.02em; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.22); }
-@keyframes splashFloat { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.025); } }
-#splash-secondary { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 28px; }
-.splash-sec-btn { display: flex; align-items: center; gap: 7px; padding: 11px 17px; border: 1.5px solid rgba(255,255,255,0.18); border-radius: 24px; background: rgba(255,255,255,0.08); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); cursor: pointer; color: rgba(255,255,255,0.60); font-family: 'Fredoka', sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.02em; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s; }
-.splash-sec-btn:hover { background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.88); border-color: rgba(255,255,255,0.32); }
-.splash-sec-btn:active { transform: scale(0.94); }
-.splash-sec-btn .mir { font-size: 16px; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; color: rgba(255,255,255,0.45); }
-#splash-blurb { font-family: 'Fredoka', sans-serif; font-size: 16px; font-weight: 400; color: rgba(255,255,255,0.42); text-align: center; max-width: 340px; line-height: 1.5; margin-bottom: 40px; }
+#splash-wordmark { width: min(300px, 68vw); height: auto; margin-bottom: 22px; -webkit-user-drag: none; user-select: none; }
+#splash-tagline { font-family: 'Fredoka', sans-serif; font-weight: 500; font-size: 17px; color: #2a3742; text-align: center; line-height: 1.5; max-width: 360px; margin-bottom: 14px; }
+#splash-subline { font-family: 'Fredoka', sans-serif; font-weight: 500; font-size: 17px; color: #2a3742; text-align: center; margin-bottom: 34px; }
+#splash-subline strong { color: #007af3; font-weight: 700; }
+/* Pushable 3D buttons: the .td-face is the top cap, its box-shadow is the coloured base.
+   On press the cap translates down while the shadow shrinks, so the base bottom stays fixed. */
+.td-btn { border: none; background: transparent; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.td-btn .td-face { display: flex; align-items: center; justify-content: center; flex-direction: column; border-radius: 28px; transition: transform 0.10s ease, box-shadow 0.10s ease; }
+.td-btn img { -webkit-user-drag: none; pointer-events: none; }
+#splash-draw-btn { width: min(340px, 78vw); margin-bottom: 28px; }
+#splash-draw-btn .td-face { gap: 12px; padding: 30px 40px; background: #1488f5; box-shadow: 0 8px 0 0 #0a5cb4; }
+#splash-draw-btn:active .td-face { transform: translateY(5px); box-shadow: 0 3px 0 0 #0a5cb4; }
+.td-start-icon { width: 56px; height: auto; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.18)); }
+.td-start-label { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 30px; color: #ffffff; letter-spacing: 0.02em; line-height: 1; }
+#splash-secondary { display: flex; gap: 16px; justify-content: center; width: min(340px, 78vw); }
+.td-sec { flex: 1 1 0; min-width: 0; }
+.td-sec .td-face { gap: 9px; padding: 16px 14px; background: #f4f9fe; box-shadow: 0 7px 0 0 #bcdcf5; }
+.td-sec:active .td-face { transform: translateY(5px); box-shadow: 0 2px 0 0 #bcdcf5; }
+.td-sec-icon { width: 38px; height: auto; }
+.td-sec-label { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 17px; color: #23303c; letter-spacing: 0.01em; line-height: 1; white-space: nowrap; }
 
 /* ── Install popup ── */
 #splash-install-popup { position: absolute; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.42); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); opacity: 0; pointer-events: none; transition: opacity 0.24s ease; }
@@ -332,12 +334,12 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
   <div class="spanel-body">
   <div class="spage active">
     <div class="sabout-logo-wrap">
-      <img class="sabout-logo" src="icons/logo/logo-icon.svg" alt="Scribblepix logo">
+      <img class="sabout-logo" src="icons/logo/logo-icon.svg" alt="Tiny Draw logo">
     </div>
-    <div class="sabout-name">Scribblepix</div>
+    <div class="sabout-name">Tiny Draw</div>
     <div class="sabout-blurb">A free, open space for kids to draw and create — no in-app purchases, no flashy game gimmicks. Just colour, imagination, and room to make something of your own.</div>
     <div class="sabout-divider"></div>
-    <div class="sabout-footer">© 2026 Scribblepix</div>
+    <div class="sabout-footer">© 2026 Tiny Draw</div>
   </div>
 
   <div class="spage">
@@ -411,23 +413,29 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 </div>
 
 <div id="splash-screen">
-  <div class="splash-blob sb1"></div>
-  <div class="splash-blob sb2"></div>
-  <div class="splash-blob sb3"></div>
-
   <div id="splash-content">
-    <div id="splash-logo-row">
-      <img id="splash-logo-img" src="icons/logo/logo-icon.svg" alt="">
-      <span id="splash-logo-name">Scribblepix</span>
-    </div>
-    <p id="splash-blurb">A free, open space for kids to draw and create — no in-app purchases, no flashy game gimmicks. Just colour, imagination, and room to make something of your own.</p>
-    <button id="splash-draw-btn">
-      <span id="splash-draw-icon" class="mir">draw</span>
-      <span id="splash-draw-label">Start Drawing</span>
+    <img id="splash-wordmark" src="icons/logo/logo-wordmark.svg" alt="Tiny Draw">
+    <p id="splash-tagline">A drawing app for kids, packed with tools that encourage exploration and creativity.</p>
+    <p id="splash-subline">No ads, no in-app purchases. <strong>Free forever</strong>.</p>
+    <button id="splash-draw-btn" class="td-btn">
+      <span class="td-face">
+        <img class="td-start-icon" src="icons/ui/splash-start-icon.svg" alt="">
+        <span class="td-start-label">Start</span>
+      </span>
     </button>
     <div id="splash-secondary">
-      <button class="splash-sec-btn" id="splash-open-btn"><span class="mir">image</span>Open image</button>
-      <button class="splash-sec-btn" id="splash-install-btn"><span class="mir">ios_share</span>Install app</button>
+      <button class="td-btn td-sec" id="splash-open-btn">
+        <span class="td-face">
+          <img class="td-sec-icon" src="icons/ui/splash-open-icon.svg" alt="">
+          <span class="td-sec-label">Open image</span>
+        </span>
+      </button>
+      <button class="td-btn td-sec" id="splash-install-btn">
+        <span class="td-face">
+          <img class="td-sec-icon" src="icons/ui/splash-install-icon.svg" alt="">
+          <span class="td-sec-label">Install app</span>
+        </span>
+      </button>
     </div>
   </div>
 
