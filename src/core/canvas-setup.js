@@ -43,6 +43,10 @@ export function updateMiniBrowser() {
 }
 
 export function applyResize() {
+  // While the splash ambient has borrowed state.ctx/ovCtx, resizing would fill
+  // the borrowed splash canvas and re-scale its transform. The real canvas is
+  // hidden behind the splash; it's re-synced when the ambient stops.
+  if (state.splashAmbient) return;
   state.resizeTimer = null;
   var tooSmallNow = !AGENT_MODE && (window.innerWidth < MIN_WIN_W || window.innerHeight < MIN_WIN_H);
   var sizeWarning = document.getElementById('size-warning');
@@ -122,6 +126,7 @@ export function applyResize() {
 }
 
 export function resize() {
+  if (state.splashAmbient) return;
   var tooSmallNow = !AGENT_MODE && (window.innerWidth < MIN_WIN_W || window.innerHeight < MIN_WIN_H);
   var sizeWarning = document.getElementById('size-warning');
   if (tooSmallNow !== state.tooSmall) {

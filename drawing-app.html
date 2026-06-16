@@ -160,7 +160,8 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 /* ── Splash screen ───────────────────────────────────────────────────────── */
 #splash-screen { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: #c9effb; transition: opacity 0.38s ease, transform 0.38s ease; transform-origin: center; overflow: hidden; }
 #splash-screen.hiding { opacity: 0; transform: scale(1.04); pointer-events: none; }
-#splash-content { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 1; padding: 0 24px; }
+#splash-glow { position: absolute; inset: 0; z-index: 3; pointer-events: none; background: radial-gradient(ellipse 48% 42% at 50% 50%, rgba(201,239,251,0.92) 0%, rgba(201,239,251,0.74) 40%, rgba(201,239,251,0) 74%); }
+#splash-content { display: flex; flex-direction: column; align-items: center; position: relative; z-index: 4; padding: 0 24px; }
 #splash-wordmark { width: min(300px, 68vw); height: auto; margin-bottom: 22px; -webkit-user-drag: none; user-select: none; }
 #splash-tagline { font-family: 'Fredoka', sans-serif; font-weight: 400; font-size: 17px; color: #2a3742; text-align: center; line-height: 1.5; max-width: 360px; margin-bottom: 14px; }
 #splash-subline { font-family: 'Fredoka', sans-serif; font-weight: 400; font-size: 17px; color: #2a3742; text-align: center; margin-bottom: 34px; }
@@ -413,6 +414,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 </div>
 
 <div id="splash-screen">
+  <div id="splash-glow"></div>
   <div id="splash-content">
     <img id="splash-wordmark" src="icons/logo/logo-wordmark.svg" alt="Tiny Draw">
     <p id="splash-tagline">A drawing app for kids, packed with tools that encourage exploration and creativity.</p>

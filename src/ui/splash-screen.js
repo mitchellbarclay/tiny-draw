@@ -1,3 +1,5 @@
+import { startSplashAmbient, stopSplashAmbient } from './splash-ambient.js';
+
 const AGENT_MODE = new URLSearchParams(location.search).has('agent');
 
 export function initSplashScreen() {
@@ -5,7 +7,10 @@ export function initSplashScreen() {
   if (!splash) return;
   if (AGENT_MODE) { splash.remove(); return; }
 
+  startSplashAmbient(splash);
+
   function dismiss(callback) {
+    stopSplashAmbient();
     splash.classList.add('hiding');
     splash.addEventListener('transitionend', () => {
       splash.remove();

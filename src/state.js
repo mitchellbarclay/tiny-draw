@@ -20,6 +20,9 @@ const state = {
   // Resize guard
   tooSmall: false,
   resizeTimer: null,
+  // True while the splash ambient screensaver has borrowed state.ctx/ovCtx.
+  // The app's resize path no-ops so it can't clobber the borrowed canvas.
+  splashAmbient: false,
 
   // Active tool + drawing state
   tool: 'pencil',
