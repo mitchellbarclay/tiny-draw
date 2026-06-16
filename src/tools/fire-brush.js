@@ -118,6 +118,19 @@ export function finalizeFireStroke() {
   });
 }
 
+// Synchronously bake every live flame onto state.ctx and tear down the loop.
+// Used by the splash ambient so a stroke fully commits to its own layer with no
+// async settle frames left to paint onto a later layer.
+export function commitFireStrokeNow() {
+  var now = performance.now();
+  state.fireLiveStamps.forEach(function(stamp) {
+    drawFlameDirectly(state.ctx, stamp, stamp.settleStart || now, stamp.alpha);
+  });
+  state.fireLiveStamps = [];
+  if (state.fireAnimFrame) { cancelAnimationFrame(state.fireAnimFrame); state.fireAnimFrame = null; }
+  state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+}
+
 function placeFlameStamp(x, y) {
   var height = state.brushSize*(1.5+Math.random()*0.8);
   var variant = Math.floor(Math.random()*FLAME_VARIANTS.length);
