@@ -31,7 +31,7 @@ import { commitFireStrokeNow } from '../tools/fire-brush.js';
 import { finalizePipeStroke } from '../tools/pipes-brush.js';
 
 // ── Tuning ──────────────────────────────────────────────────────────────────
-var DRAW_STEP    = 5.5;   // px advanced per frame (~330 px/s) — lower = slower draw
+var DRAW_STEP    = 10;    // px advanced per frame (~600 px/s) — lower = slower draw
 var SETTLE_MS    = 450;   // after the path, let grow/flicker animations finish on the layer
 var HOLD_MS      = 2200;  // stroke sits fully visible before it starts fading
 var FADE_MS      = 9000;  // uniform fade-out duration
@@ -260,26 +260,54 @@ function edgePoint(W, H, off, exclude) {
 // A wandering polyline that enters from one off-screen edge and exits another,
 // crossing the whole viewport. It heads gently toward the exit point while a
 // soft outward steer routes it around the central text band.
+// Smooth a polyline with a couple of weighted moving-average passes (endpoints
+// fixed), turning the wandering vertices into gentle flowing curves.
+function smoothPath(v) {
+  if (v.length < 3) return v;
+  var out = v.slice();
+  for (var pass = 0; pass < 2; pass++) {
+    var prev = out.slice();
+    for (var i = 1; i < out.length - 1; i++) {
+      out[i] = {
+        x: (prev[i - 1].x + prev[i].x * 2 + prev[i + 1].x) / 4,
+        y: (prev[i - 1].y + prev[i].y * 2 + prev[i + 1].y) / 4,
+      };
+    }
+  }
+  return out;
+}
+
 function buildPath(curvy, off) {
   var W = state.canvasW, H = state.canvasH;
   var cx = W / 2, cy = H / 2;
   var avoidRx = W * 0.34, avoidRy = H * 0.30; // soft text-protection ellipse
+  var minChord = Math.hypot(W, H) * 0.6;      // require a real journey across the canvas
 
+  // Pick endpoints far enough apart that the stroke clearly crosses the canvas,
+  // instead of hugging one wall or curling back into the same corner.
   var start = edgePoint(W, H, off);
   var end = edgePoint(W, H, off, start.edge);
+  for (var t = 0; t < 12 && Math.hypot(end.x - start.x, end.y - start.y) < minChord; t++) {
+    end = edgePoint(W, H, off, start.edge);
+  }
+
   var x = start.x, y = start.y;
   var ang = Math.atan2(end.y - y, end.x - x);
+  var turn = 0;
   var seg = 24;
   var verts = [{ x: x, y: y }];
   var maxSteps = Math.ceil((W + H) / seg) * 3;
 
   for (var s = 0; s < maxSteps; s++) {
     if (Math.hypot(end.x - x, end.y - y) < seg * 1.5) break;
+    // Smooth, sweeping curvature: the turn rate is a damped random walk rather
+    // than fresh per-step jitter, so the path flows instead of zig-zagging.
+    turn += (Math.random() - 0.5) * curvy * 0.5;
+    turn *= 0.86;
+    ang += turn;
     // Gentle pull toward the exit point so the stroke actually crosses.
     var goalAng = Math.atan2(end.y - y, end.x - x);
-    ang += Math.sin(goalAng - ang) * 0.12;
-    // Wander.
-    ang += (Math.random() - 0.5) * curvy * 1.4;
+    ang += Math.sin(goalAng - ang) * 0.10;
     // Soft outward steer when inside the protected ellipse around the text.
     var ex = (x - cx) / avoidRx, ey = (y - cy) / avoidRy;
     var er = ex * ex + ey * ey;
@@ -291,7 +319,7 @@ function buildPath(curvy, off) {
     verts.push({ x: x, y: y });
   }
   verts.push({ x: end.x, y: end.y });
-  return verts;
+  return smoothPath(verts);
 }
 
 // Resample a polyline into points evenly spaced by DRAW_STEP px.
