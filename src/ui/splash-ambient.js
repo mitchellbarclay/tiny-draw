@@ -76,6 +76,7 @@ var cur = null;         // current playback { samples, idx, recipe, layer }
 var mode = 'idle';      // 'drawing' | 'settling' | 'gap'
 var phaseUntil = 0;
 var occ = null;         // recency-weighted occupancy map (Float32Array, GW*GH)
+var resizeTimer = null;
 
 function vw(splash) { return splash.clientWidth; }
 function vh(splash) { return splash.clientHeight; }
@@ -145,6 +146,7 @@ export function stopSplashAmbient() {
   if (!running) return;
   running = false;
   window.removeEventListener('resize', onResize);
+  if (resizeTimer) { clearTimeout(resizeTimer); resizeTimer = null; }
   if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
   resetBrushes(); // flush + cancel every brush loop before we hand state back
@@ -170,14 +172,34 @@ export function stopSplashAmbient() {
   applyResize();
 }
 
+// Non-destructive + debounced: only react when the viewport size truly changed,
+// and update dimensions + the overlay in place rather than tearing everything
+// down. (Some environments — e.g. a hover-reveal preview toolbar, a mobile URL
+// bar — fire resize storms with no real size change; those become no-ops here so
+// the in-progress strokes are never wiped.)
 function onResize() {
+  if (!running) return;
+  if (resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(applyAmbientResize, 180);
+}
+
+function applyAmbientResize() {
+  resizeTimer = null;
+  if (!running || !ovCanvas) return;
   var splash = document.getElementById('splash-screen');
-  stopSplashAmbient();
-  if (splash && !splash.classList.contains('hiding')) {
-    setTimeout(function () {
-      if (splash.isConnected && !splash.classList.contains('hiding')) startSplashAmbient(splash);
-    }, 260);
-  }
+  if (!splash || splash.classList.contains('hiding')) return;
+  var w = splash.clientWidth, h = splash.clientHeight;
+  if (w <= 0 || h <= 0) return;
+  if (w === state.canvasW && h === state.canvasH) return; // no real change → ignore
+
+  state.canvasW = w; state.canvasH = h;
+  // Resize the shared overlay (this resets its transform, so re-apply the scale).
+  ovCanvas.width = w * state.DPR; ovCanvas.height = h * state.DPR;
+  state.ovCtx.scale(state.DPR, state.DPR);
+  state.ovCtx.imageSmoothingEnabled = true;
+  state.ovCtx.imageSmoothingQuality = 'high';
+  // Existing layers keep their positions and fade out as normal; new strokes use
+  // the updated dimensions.
 }
 
 // ── Brush commit / cleanup ────────────────────────────────────────────────--
