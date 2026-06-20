@@ -31,12 +31,17 @@ export function menuBtnStrokeEnd() {
 export function initAppMenu() {
   const btn = document.getElementById('app-menu-btn');
   const dropdown = document.getElementById('app-menu-dropdown');
+  const closeBtn = document.getElementById('app-menu-close');
   const fileInput = document.getElementById('open-image-input');
 
-  function close() { dropdown.classList.remove('visible'); }
+  // The pill expands into the card: hide the pill while the card is open so the
+  // card's "Menu" title + close X stand in for it.
+  function open() { dropdown.classList.add('visible'); btn.classList.add('hidden'); }
+  function close() { dropdown.classList.remove('visible'); btn.classList.remove('hidden'); }
 
-  btn.addEventListener('click', (e) => { e.stopPropagation(); dropdown.classList.toggle('visible'); });
+  btn.addEventListener('click', (e) => { e.stopPropagation(); open(); });
   btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
 
   // Dismiss on any press outside the menu, or Escape.
   document.addEventListener('pointerdown', (e) => {
