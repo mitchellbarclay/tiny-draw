@@ -3,69 +3,91 @@ import { saveHistory } from '../core/history.js';
 import { saveDrawing } from './toolbar.js';
 import { openAbout, openInstall } from './settings-menu.js';
 
-// The canvas-corner MENU button + dropdown. Nests what used to be the left-rail
-// settings cog and save button, plus a new "Open image" import.
+// Unified morphing menu — single #app-menu container expands from pill to card.
 
 var _menuFaded = false;
+var _closeMenu = null; // set by initAppMenu, used by stroke handlers
+var _expandedW = 0, _expandedH = 0;
+const PILL_W = 130; // pill width matches: 22px pad + "Menu" text + 14px gap + 16px icon + 22px pad
+const PILL_H = 47;
 
-// Called on stroke start: make the pill transparent to pointer events for the
-// whole stroke. Otherwise events over the solid pill route to the button (not
-// the canvas), so the canvas mousemove — and thus menuBtnStrokeHit — never fires
-// there, and the button hijacks the drag (selection cursor). With pointer-events
-// off, the canvas receives every move, detection is reliable, and you can draw
-// straight through the (faded) pill.
 export function menuBtnStrokeBegin() {
-  const btn = document.getElementById('app-menu-btn');
-  if (btn) btn.style.pointerEvents = 'none';
+  const menu = document.getElementById('app-menu');
+  if (menu) menu.style.pointerEvents = 'none';
 }
 
 export function menuBtnStrokeHit(cx, cy) {
   if (_menuFaded) return;
-  const btn = document.getElementById('app-menu-btn');
-  if (!btn) return;
-  const r = btn.getBoundingClientRect();
+  const menu = document.getElementById('app-menu');
+  if (!menu) return;
+  const r = menu.getBoundingClientRect();
   if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) {
     _menuFaded = true;
-    btn.style.opacity = '0';
-    const dd = document.getElementById('app-menu-dropdown');
-    if (dd) dd.classList.remove('visible');
+    menu.style.opacity = '0';
+    if (_closeMenu) _closeMenu();
   }
 }
 
 export function menuBtnStrokeEnd() {
-  const btn = document.getElementById('app-menu-btn');
-  if (btn) {
-    btn.style.pointerEvents = '';
-    if (_menuFaded) btn.style.opacity = '';
+  const menu = document.getElementById('app-menu');
+  if (menu) {
+    menu.style.pointerEvents = '';
+    if (_menuFaded) menu.style.opacity = '';
   }
   _menuFaded = false;
 }
 
 export function initAppMenu() {
-  const btn = document.getElementById('app-menu-btn');
-  const dropdown = document.getElementById('app-menu-dropdown');
+  const menu = document.getElementById('app-menu');
+  const pill = menu.querySelector('.app-menu-pill');
   const closeBtn = document.getElementById('app-menu-close');
   const fileInput = document.getElementById('open-image-input');
 
-  // The pill expands into the card: hide the pill while the card is open so the
-  // card's "Menu" title + close X stand in for it.
-  function open() { dropdown.classList.add('visible'); btn.classList.add('hidden'); }
-  function close() { dropdown.classList.remove('visible'); btn.classList.remove('hidden'); }
+  // Measure expanded dimensions before the first paint so we know target size.
+  // Temporarily expand without transitions (synchronous — no visual flash).
+  menu.style.transition = 'none';
+  menu.style.width = 'max-content';
+  menu.style.height = 'auto';
+  menu.style.overflow = 'visible';
+  _expandedW = menu.offsetWidth;
+  _expandedH = menu.offsetHeight;
+  // Collapse back without transitions
+  menu.style.width = PILL_W + 'px';
+  menu.style.height = PILL_H + 'px';
+  menu.style.overflow = 'hidden';
+  void menu.offsetHeight; // flush layout before re-enabling transitions
+  menu.style.transition = '';
 
-  btn.addEventListener('click', (e) => { e.stopPropagation(); open(); });
-  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  function open() {
+    menu.style.width = _expandedW + 'px';
+    menu.style.height = _expandedH + 'px';
+    menu.classList.add('open');
+  }
+
+  function close() {
+    menu.style.width = PILL_W + 'px';
+    menu.style.height = PILL_H + 'px';
+    menu.classList.remove('open');
+  }
+
+  _closeMenu = close;
+
+  // Clicking the pill (or the container when closed) opens the menu.
+  pill.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+  menu.addEventListener('contextmenu', (e) => e.preventDefault());
   closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
 
   // Dismiss on any press outside the menu, or Escape.
   document.addEventListener('pointerdown', (e) => {
-    if (!dropdown.classList.contains('visible')) return;
-    if (dropdown.contains(e.target) || btn.contains(e.target)) return;
+    if (!menu.classList.contains('open')) return;
+    if (menu.contains(e.target)) return;
     close();
   });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 
-  dropdown.querySelectorAll('.app-menu-item').forEach((item) => {
-    item.addEventListener('click', () => {
+  menu.querySelectorAll('.app-menu-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
       const action = item.dataset.action;
       close();
       if (action === 'about') openAbout();
@@ -78,7 +100,7 @@ export function initAppMenu() {
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
     if (file) loadImageFile(file);
-    fileInput.value = ''; // let the same file be re-opened later
+    fileInput.value = '';
   });
 }
 
