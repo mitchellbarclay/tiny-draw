@@ -80,7 +80,7 @@ export function adjacentColor(css, hueRange) {
   return hslToRgbCss(h, s, l);
 }
 
-// Colour-track stops (matches the CSS gradient in drawing-app.html)
+// Colour-track stops (matches the CSS gradient in index.html)
 export var colorStops = [
   {pos:0.00, rgb:[255,255,255]},
   {pos:0.10, rgb:[255,95,162]},
