@@ -29,6 +29,37 @@ function drawBubble(bctx, px, py, r, rgb) {
   bctx.restore();
 }
 
+// Render each bubble's gradients exactly once into an offscreen sprite, then
+// blit (drawImage) it every frame. drawImage is cheap; recreating three radial
+// gradients per particle per frame is not — this is the iPad perf win.
+function bubbleSprite(p) {
+  if (p.sprite) return p.sprite;
+  var r = p.targetR;
+  var pad = Math.max(2, r * 0.08);
+  var half = r + pad;
+  var dpr = state.DPR || 2;
+  var pxSize = Math.max(2, Math.ceil(half * 2 * dpr));
+  var cv;
+  if (typeof OffscreenCanvas !== 'undefined') {
+    cv = new OffscreenCanvas(pxSize, pxSize);
+  } else {
+    cv = document.createElement('canvas');
+    cv.width = pxSize; cv.height = pxSize;
+  }
+  var sctx = cv.getContext('2d');
+  sctx.scale(dpr, dpr);
+  drawBubble(sctx, half, half, r, p.rgb);
+  p.sprite = { canvas: cv, half: half };
+  return p.sprite;
+}
+
+function blitBubble(dctx, p, r) {
+  var s = bubbleSprite(p);
+  var scale = r / p.targetR;
+  var size = s.half * 2 * scale;
+  dctx.drawImage(s.canvas, p.x - s.half * scale, p.y - s.half * scale, size, size);
+}
+
 function splatterOverlayFrame() {
   var now = performance.now();
   var stillGrowing = [];
@@ -38,9 +69,9 @@ function splatterOverlayFrame() {
     var t = Math.max(0, Math.min(1, (now - p.born) / BUBBLE_GROW_MS));
     var curR = p.targetR * easeOutFastSlow(t);
     if (t >= 1) {
-      drawBubble(state.ctx, p.x, p.y, p.targetR, p.rgb);
+      blitBubble(state.ctx, p, p.targetR);
     } else {
-      drawBubble(state.ovCtx, p.x, p.y, curR, p.rgb);
+      blitBubble(state.ovCtx, p, curR);
       stillGrowing.push(p);
     }
   }
@@ -55,8 +86,7 @@ function splatterOverlayFrame() {
 export function commitAllSplatterParticles() {
   if (state.splatterAnimId) { cancelAnimationFrame(state.splatterAnimId); state.splatterAnimId = null; }
   for (var pi = 0; pi < state.splatterParticles.length; pi++) {
-    var p = state.splatterParticles[pi];
-    drawBubble(state.ctx, p.x, p.y, p.targetR, p.rgb);
+    blitBubble(state.ctx, state.splatterParticles[pi], state.splatterParticles[pi].targetR);
   }
   state.splatterParticles = [];
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
@@ -85,14 +115,15 @@ export function drawSplatterStroke(x, y) {
         x: bx, y: by,
         targetR: dotR,
         rgb: parseColorRgb(hslToRgbCss(h0, s0, l0)),
-        born: performance.now() + delay
+        born: performance.now() + delay,
+        sprite: null
       });
     }
     if (state.mirrorMode) {
       var splatterEnd = state.splatterParticles.length;
       for (var mi = splatterStart; mi < splatterEnd; mi++) {
         var mp = state.splatterParticles[mi];
-        state.splatterParticles.push({x: state.canvasW - mp.x, y: mp.y, targetR: mp.targetR, rgb: mp.rgb, born: mp.born});
+        state.splatterParticles.push({x: state.canvasW - mp.x, y: mp.y, targetR: mp.targetR, rgb: mp.rgb, born: mp.born, sprite: null});
       }
     }
     if (!state.splatterAnimId) {
