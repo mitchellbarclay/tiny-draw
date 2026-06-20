@@ -345,10 +345,14 @@ function _syncDockColour() {
   if (!_dockVM) return;
   var prop = _dockVM.color('dockColour');
   if (!prop) return;
+  // Match the page background behind the canvas (full opacity) so the dock reads
+  // as a notch in the outer page. The body gradient runs c1→c2→c3 top→bottom;
+  // the dock sits flush with the canvas bottom, so it matches the bottom stop c3.
+  // Logic mirrors updateBackground() in color-picker.js, including near-white.
   var rgb = hexToRgb(state.color || '#000000');
-  var tinted = lightenColor(rgb, 0.80);
-  var a = Math.round(0.9 * 255);
-  prop.value = ((a << 24) | (tinted[0] << 16) | (tinted[1] << 8) | tinted[2]) >>> 0;
+  var nearWhite = rgb[0] > 240 && rgb[1] > 240 && rgb[2] > 240;
+  var c3 = nearWhite ? [198, 205, 213] : lightenColor(rgb, 0.72);
+  prop.value = ((0xFF << 24) | (c3[0] << 16) | (c3[1] << 8) | c3[2]) >>> 0;
 }
 
 function _hexToArgb(hex) {
