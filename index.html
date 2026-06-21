@@ -158,11 +158,15 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 .modal-close img { width: 16px; height: 16px; display: block; }
 
 /* ── About modal ─────────────────────────────────────────────────────────── */
-.about-wordmark { display: block; width: min(280px, 72%); height: auto; margin: 14px auto 0; -webkit-user-drag: none; user-select: none; }
-.about-version { text-align: center; font-size: 21px; font-weight: 600; color: #1488f5; margin: 18px 0; }
-.about-blurb { text-align: center; font-size: 17px; font-weight: 400; color: #3a4654; line-height: 1.5; max-width: 360px; margin: 0 auto 16px; }
-.about-free { text-align: center; font-size: 17px; font-weight: 400; color: #3a4654; }
-.about-free strong { color: #1488f5; font-weight: 600; }
+/* Figma: 16px gaps between blocks, 20px top / 40px bottom padding (the chin).
+   The shared .modal-close stays absolute (top-right) for parity with the
+   install modal, so the logo gets a 32px top margin = Figma's closerow (16px)
+   + gap (16px). */
+#about-panel { display: flex; flex-direction: column; align-items: center; gap: 16px; padding-bottom: 40px; }
+.about-wordmark { display: block; width: 287px; max-width: 100%; height: auto; margin-top: 32px; -webkit-user-drag: none; user-select: none; }
+.about-version { text-align: center; font-size: 18px; font-weight: 600; color: #0079F3; }
+.about-desc { text-align: center; font-size: 18px; font-weight: 400; color: #23303C; line-height: 1; align-self: stretch; }
+.about-desc strong { color: #0079F3; font-weight: 600; }
 
 /* ── Install modal ───────────────────────────────────────────────────────── */
 .install-tabs { display: flex; gap: 12px; margin: 38px 0 0; }
@@ -330,8 +334,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
   <button class="modal-close" aria-label="Close"><img src="icons/ui/menu-close-icon.svg" alt=""></button>
   <img class="about-wordmark" src="icons/logo/logo-wordmark.svg" alt="Tiny Draw">
   <div class="about-version">Version 0.1</div>
-  <div class="about-blurb">A drawing app for kids, packed with tools that encourage exploration and creativity.</div>
-  <div class="about-free">No ads, no in-app purchases. <strong>Free forever</strong>.</div>
+  <div class="about-desc">A drawing app for kids, packed with tools that encourage exploration and creativity.<br><br>No ads, no in-app purchases. <strong>Free forever.</strong></div>
 </div>
 
 <!-- Install modal (shared by splash + app menu) -->
