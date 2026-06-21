@@ -25,9 +25,10 @@ import { doAlienBlast } from './alien-blast.js';
 // returns to its initial state and fires `done` when complete, so a reused
 // instance needs no manual reset. If all are busy we grow the pool on demand.
 
-var ARTBOARD = 360;     // design px — anchor at centre is the impact zone
-var DRAG_THRESH = 6;    // px of movement before a press counts as a drag
-var PREWARM = 2;        // instances spun up per tool ahead of time
+var ARTBOARD = 360;       // design px — anchor at centre is the impact zone
+var DRAG_THRESH = 6;      // px of movement before a press counts as a drag
+var PREWARM = 2;          // instances spun up per tool ahead of time
+var MIN_COMMIT_GAP = 200; // ms — guarantee this beat between place and commit on a rapid tap
 
 var _buffer = null;
 var _pools = {};        // tool -> { artboard, impact, instances:[] }
@@ -172,10 +173,12 @@ export function placedUp() {
   var inst = _active;
   _active = null;
   if (inst.bDragging) inst.bDragging.value = false;
-  // Never fire commit in the same frame as place (a very fast tap) — the SM allows
-  // exit during the place transition but the two shouldn't land together.
-  if (performance.now() - inst.placeT < 40) {
-    requestAnimationFrame(function() { _fire(inst.tCommit); });
+  // On a rapid tap, hold commit until at least MIN_COMMIT_GAP after place so the
+  // place animation gets a beat to read before the effect fires. The instance
+  // stays busy (won't be re-acquired) until done, so the deferred commit is safe.
+  var elapsed = performance.now() - inst.placeT;
+  if (elapsed < MIN_COMMIT_GAP) {
+    setTimeout(function() { _fire(inst.tCommit); }, MIN_COMMIT_GAP - elapsed);
   } else {
     _fire(inst.tCommit);
   }
