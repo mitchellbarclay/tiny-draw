@@ -10,6 +10,9 @@ var cachedW = 0, cachedH = 0;
 var camDist = 0;
 var primaryMesh = null;
 var mirrorMesh = null;
+// Wireframe overlays — each shares its body mesh's geometry (no extra buffers).
+var primaryWire = null;
+var mirrorWire = null;
 
 // Cross-section of the ribbon: a flattened pentagon (low-poly, wider than thick).
 // Listed CCW. Scaled per-ring by halfW (u) and halfT (v).
@@ -83,24 +86,47 @@ function ensureCamera() {
 // that brightens past the base colour — the shine that reads as 3D.
 export function makeMaterial(color) {
   var col = new THREE.Color(color);
-  // Punch saturation hard and lift very-dark picks off the floor so the body
-  // stays candy-bright instead of dim — a near-black pick still reads as a
-  // glossy coloured tube rather than a muddy lump.
   var hsl = { h: 0, s: 0, l: 0 };
   col.getHSL(hsl);
-  var s = Math.min(1, hsl.s * 1.45 + 0.06);
-  var l = Math.min(0.66, Math.max(hsl.l, 0.42));
-  col.setHSL(hsl.h, s, l);
+  // Boost saturation ONLY for colours that actually have some — injecting
+  // saturation into a white/grey pick is what turned white into pink-grey.
+  // Likewise only lift genuinely dark colours off the floor, and never cap
+  // lightness (the old 0.66 cap is what dimmed a white pick down to grey).
+  var sat = hsl.s < 0.05 ? hsl.s : Math.min(1, hsl.s * 1.4);
+  var lum = hsl.s < 0.05 ? hsl.l : Math.max(hsl.l, 0.38);
+  col.setHSL(hsl.h, sat, lum);
   return new THREE.MeshPhongMaterial({
     color: col,
-    // Richer emissive floor keeps shaded facets saturated; tinted toward the
-    // base hue (not grey) so the whole body glows in its own colour.
-    emissive: col.clone().multiplyScalar(0.30),
-    // Brighter, tighter highlight → wet/glossy plastic glint.
-    specular: new THREE.Color(0.78, 0.78, 0.78),
-    shininess: 72,
+    // Moderate hue-tinted emissive keeps the body saturated. We keep it light
+    // (vs a heavy floor) because the neon wireframe now carries the 3D read —
+    // a strong emissive would flatten light colours into glowing blobs.
+    emissive: col.clone().multiplyScalar(0.26),
+    specular: new THREE.Color(0.8, 0.8, 0.8),
+    shininess: 80,
     side: THREE.FrontSide,
     flatShading: true,
+  });
+}
+
+// Glowing neon grid that wraps the tube — a brightened, fully-saturated take on
+// the base hue. `depthTest:false` lets the far-side edges bleed through the
+// solid body for a holographic, x-ray "in the grid" read; `wireframe:true`
+// reuses the body geometry (no extra buffers), so this costs just one more draw
+// call. WebGL clamps line width to 1px, which the 2× supersample softens into a
+// clean glowing thread on downscale.
+export function makeWireMaterial(color) {
+  var col = new THREE.Color(color);
+  var hsl = { h: 0, s: 0, l: 0 };
+  col.getHSL(hsl);
+  var sat = hsl.s < 0.05 ? 0 : Math.min(1, hsl.s * 1.1 + 0.25);
+  var lum = Math.min(0.9, hsl.l * 0.45 + 0.55);
+  col.setHSL(hsl.h, sat, lum);
+  return new THREE.MeshBasicMaterial({
+    color: col,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.55,
+    depthTest: false,
   });
 }
 
@@ -242,12 +268,24 @@ function buildRibbonMesh(pts, material, brushSize) {
   return new THREE.Mesh(geo, material);
 }
 
-// Disposes only the geometry — the material is cached per-stroke and reused
-// across rebuilds, so it's disposed separately in finalize.
-function disposeMeshGeom(mesh) {
-  if (!mesh) return;
-  scene.remove(mesh);
-  if (mesh.geometry) mesh.geometry.dispose();
+// Builds the body mesh and a wireframe overlay that SHARES its geometry, so the
+// neon grid costs no extra buffers — just a second draw call. Both materials are
+// cached per-stroke and reused across rebuilds.
+function buildMeshPair(stroke) {
+  var body = buildRibbonMesh(stroke.pts, stroke.material, stroke.brushSize);
+  if (!body) return { body: null, wire: null };
+  var wire = new THREE.Mesh(body.geometry, stroke.wireMaterial);
+  return { body: body, wire: wire };
+}
+
+// Removes a body+wire pair from the scene and disposes the geometry ONCE (the
+// wire shares the same buffer). Materials are disposed separately in finalize.
+function disposeMeshPair(body, wire) {
+  if (wire) scene.remove(wire);
+  if (body) {
+    scene.remove(body);
+    if (body.geometry) body.geometry.dispose();
+  }
 }
 
 function renderToCtx(ctx) {
@@ -269,17 +307,19 @@ function threeOverlayFrame() {
   var rebuilt = false;
 
   if (state.threeStroke && state.threeStroke.dirty) {
-    disposeMeshGeom(primaryMesh);
-    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.material, state.threeStroke.brushSize);
-    if (primaryMesh) scene.add(primaryMesh);
+    disposeMeshPair(primaryMesh, primaryWire);
+    var pp = buildMeshPair(state.threeStroke);
+    primaryMesh = pp.body; primaryWire = pp.wire;
+    if (primaryMesh) { scene.add(primaryMesh); scene.add(primaryWire); }
     state.threeStroke.dirty = false;
     rebuilt = true;
   }
 
   if (state.mirrorThreeStroke && state.mirrorThreeStroke.dirty) {
-    disposeMeshGeom(mirrorMesh);
-    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.material, state.mirrorThreeStroke.brushSize);
-    if (mirrorMesh) scene.add(mirrorMesh);
+    disposeMeshPair(mirrorMesh, mirrorWire);
+    var mp = buildMeshPair(state.mirrorThreeStroke);
+    mirrorMesh = mp.body; mirrorWire = mp.wire;
+    if (mirrorMesh) { scene.add(mirrorMesh); scene.add(mirrorWire); }
     state.mirrorThreeStroke.dirty = false;
     rebuilt = true;
   }
@@ -301,6 +341,7 @@ export function drawThreeStroke(x, y, color) {
       color: color,
       brushSize: state.brushSize,
       material: makeMaterial(color),
+      wireMaterial: makeWireMaterial(color),
       dirty: true,
     };
   } else {
@@ -332,25 +373,33 @@ export function finalizeThreeStroke() {
   var anyMesh = false;
 
   if (state.threeStroke) {
-    disposeMeshGeom(primaryMesh);
-    primaryMesh = buildRibbonMesh(state.threeStroke.pts, state.threeStroke.material, state.threeStroke.brushSize);
-    if (primaryMesh) { scene.add(primaryMesh); anyMesh = true; }
+    disposeMeshPair(primaryMesh, primaryWire);
+    var pp = buildMeshPair(state.threeStroke);
+    primaryMesh = pp.body; primaryWire = pp.wire;
+    if (primaryMesh) { scene.add(primaryMesh); scene.add(primaryWire); anyMesh = true; }
   }
 
   if (state.mirrorThreeStroke) {
-    disposeMeshGeom(mirrorMesh);
-    mirrorMesh = buildRibbonMesh(state.mirrorThreeStroke.pts, state.mirrorThreeStroke.material, state.mirrorThreeStroke.brushSize);
-    if (mirrorMesh) { scene.add(mirrorMesh); anyMesh = true; }
+    disposeMeshPair(mirrorMesh, mirrorWire);
+    var mp = buildMeshPair(state.mirrorThreeStroke);
+    mirrorMesh = mp.body; mirrorWire = mp.wire;
+    if (mirrorMesh) { scene.add(mirrorMesh); scene.add(mirrorWire); anyMesh = true; }
   }
 
   if (anyMesh) renderToCtx(state.ctx);
 
-  disposeMeshGeom(primaryMesh); primaryMesh = null;
-  disposeMeshGeom(mirrorMesh);  mirrorMesh = null;
+  disposeMeshPair(primaryMesh, primaryWire); primaryMesh = null; primaryWire = null;
+  disposeMeshPair(mirrorMesh, mirrorWire);   mirrorMesh = null;  mirrorWire = null;
 
   // Materials are cached on the stroke objects — dispose them here.
-  if (state.threeStroke && state.threeStroke.material) state.threeStroke.material.dispose();
-  if (state.mirrorThreeStroke && state.mirrorThreeStroke.material) state.mirrorThreeStroke.material.dispose();
+  if (state.threeStroke) {
+    if (state.threeStroke.material) state.threeStroke.material.dispose();
+    if (state.threeStroke.wireMaterial) state.threeStroke.wireMaterial.dispose();
+  }
+  if (state.mirrorThreeStroke) {
+    if (state.mirrorThreeStroke.material) state.mirrorThreeStroke.material.dispose();
+    if (state.mirrorThreeStroke.wireMaterial) state.mirrorThreeStroke.wireMaterial.dispose();
+  }
 
   state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
   state.threeStroke = null;
