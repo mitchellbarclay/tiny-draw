@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Fredoka:wght@400;500;600;700&family=Coiny&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Coiny&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-tap-highlight-color: transparent; }
@@ -26,15 +26,14 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #tool-scroll-section { position: relative; min-height: 0; width: 100%; display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.05); border-radius: 26px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.10); overflow: hidden; }
 #tool-scroll-viewport { min-height: 0; overflow: hidden; width: 100%; display: flex; flex-direction: column; align-items: center; padding: 10px 0; }
 #tool-list { display: flex; flex-direction: column; gap: 14px; align-items: center; will-change: transform; }
-.tool-overflow-btn { position: absolute; left: 50%; margin-left: -19px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.10); background: rgba(255,255,255,0.88); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); color: rgba(30,60,70,0.85); box-shadow: 0 2px 6px rgba(0,0,0,0.22); }
+.tool-overflow-btn { position: absolute; left: 50%; margin-left: -19px; z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.10); background: rgba(255,255,255,0.88); cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); color: rgba(30,60,70,0.85); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
 #tool-overflow-up { top: 14px; }
 #tool-overflow-down { bottom: 14px; }
 .tool-overflow-btn.visible { opacity: 1; pointer-events: auto; }
 .tool-btn.slot-hidden { opacity: 0; pointer-events: none; }
 .tool-overflow-btn:hover { background: rgba(255,255,255,0.90); color: rgba(30,60,70,1); }
 .tool-overflow-btn:active { transform: scale(0.88); }
-.tool-overflow-btn .mir { font-size: 20px; }
-#active-tool-pin { width: 100%; aspect-ratio: 1; border-radius: 22px; background: rgba(255,255,255,0.55); box-shadow: 0 3px 10px rgba(0,0,0,0.22), inset 0 0 0 3px rgba(255,255,255,0.7); border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; flex-shrink: 0; transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); }
+#active-tool-pin { width: 100%; aspect-ratio: 1; border-radius: 22px; background: rgba(255,255,255,0.55); box-shadow: 0 1px 6px rgba(0,0,0,0.12), inset 0 0 0 3px rgba(255,255,255,0.7); border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; flex-shrink: 0; transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); }
 #active-tool-pin.visible { opacity: 1; pointer-events: auto; }
 #active-tool-pin.eraser-active { background: #ffffff; }
 #active-tool-pin img { width: 78%; height: 78%; pointer-events: none; user-select: none; -webkit-user-drag: none; }
@@ -54,13 +53,12 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #mirror-toggle.active { background: var(--accent); border: 2px solid var(--accent-dark); box-shadow: inset 0 0 0 2px var(--accent-dark); transform: scale(1.14); }
 #mirror-toggle:active { transform: scale(0.92); }
 #mirror-toggle.active:active { transform: scale(1.02); }
-.mir { font-family: 'Material Symbols Outlined'; font-size: 22px; font-weight: normal; font-style: normal; line-height: 1; display: inline-block; text-transform: none; letter-spacing: normal; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-smoothing: antialiased; font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-#color-swatch { width: 100%; aspect-ratio: 1; flex: 0 0 auto; border-radius: 22px; background: #3fbce5; box-shadow: 0 3px 10px rgba(0,0,0,0.22), inset 0 0 0 3px rgba(255,255,255,0.7); transition: background 0.12s; }
+#color-swatch { width: 100%; aspect-ratio: 1; flex: 0 0 auto; border-radius: 22px; background: #3fbce5; box-shadow: 0 1px 6px rgba(0,0,0,0.12), inset 0 0 0 3px rgba(255,255,255,0.7); transition: background 0.12s; }
 #mod-track { width: 100%; flex: 35 1 0; min-height: 60px; position: relative; border-radius: 26px; background: linear-gradient(to bottom, #ffffff, #3fbce5 50%, #18708c); box-shadow: inset 0 2px 8px rgba(0,0,0,0.22); }
 #color-track { width: 100%; flex: 65 1 0; min-height: 0; position: relative; border-radius: 26px; background: linear-gradient(to bottom, #ffffff 0%, #ff5fa2 10%, #c43dff 22%, #6f5fff 34%, #3fa6ff 47%, #3fff8a 60%, #ffe53f 73%, #ff7f3f 83%, #ff3f3f 92%, #000000 100%); box-shadow: inset 0 2px 8px rgba(0,0,0,0.22); }
-#color-handle, #mod-handle { position: absolute; left: 0; right: 0; height: 66px; background: rgba(255,255,255,0.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); border-radius: 26px; cursor: grab; box-shadow: 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.6); user-select: none; touch-action: none; transition: box-shadow 0.14s; display: flex; align-items: center; justify-content: center; }
-#color-handle:hover, #mod-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 3px 10px rgba(0,0,0,0.40), inset 0 0 0 2px rgba(255,255,255,0.55); }
-#color-handle.grabbing, #mod-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.32), inset 0 0 0 2px rgba(255,255,255,0.55); }
+#color-handle, #mod-handle { position: absolute; left: 0; right: 0; height: 66px; background: rgba(255,255,255,0.35); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); border-radius: 26px; cursor: grab; box-shadow: 0 1px 5px rgba(0,0,0,0.14), inset 0 0 0 2px rgba(255,255,255,0.6); user-select: none; touch-action: none; transition: box-shadow 0.14s; display: flex; align-items: center; justify-content: center; }
+#color-handle:hover, #mod-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.20), inset 0 0 0 2px rgba(255,255,255,0.55); }
+#color-handle.grabbing, #mod-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 1px 5px rgba(0,0,0,0.14), inset 0 0 0 2px rgba(255,255,255,0.55); }
 #color-handle.anim-press, #mod-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
 #color-handle.anim-release, #mod-handle.anim-release { animation: sliderRelease 0.4s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
 #canvas-column { flex: 1; min-width: 0; display: flex; flex-direction: column; margin: 12px 0; }
@@ -73,7 +71,7 @@ body { background: linear-gradient(135deg, var(--bg-c1) 0%, var(--bg-c2) 50%, va
 #wipe-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 150; }
 #resize-overlay { display: none; position: absolute; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 18px; color: #1a1a2e; font-family: 'Fredoka', sans-serif; font-size: 20px; letter-spacing: 0.02em; }
 #canvas-area.resizing #resize-overlay { display: flex; }
-#mini-browser { width: 180px; height: 130px; background: #ffffff; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.35); display: flex; flex-direction: column; overflow: hidden; transition: width 0.18s ease, height 0.18s ease; }
+#mini-browser { width: 180px; height: 130px; background: #ffffff; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.16); display: flex; flex-direction: column; overflow: hidden; transition: width 0.18s ease, height 0.18s ease; }
 #mini-browser-bar { height: 16px; background: #d8d8df; display: flex; align-items: center; padding: 0 8px; gap: 5px; flex-shrink: 0; }
 #mini-browser-bar span { width: 7px; height: 7px; border-radius: 50%; }
 #mini-browser-body { flex: 1; background: linear-gradient(135deg, #f4f4f8 0%, #e6e6ee 100%); }
@@ -81,15 +79,15 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #c { cursor: crosshair; }
 #overlay { pointer-events: none; }
 #slider-track { width: 100%; flex: 1 1 auto; min-height: 120px; position: relative; background: rgba(0,0,0,0.10); border-radius: 26px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.10); }
-#slider-handle { position: absolute; left: 0; right: 0; height: 88px; background: #ecf0f1; border-radius: 26px; cursor: grab; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 12px 0 20px; user-select: none; touch-action: none; box-shadow: 0 2px 10px rgba(0,0,0,0.32); transition: box-shadow 0.14s; }
+#slider-handle { position: absolute; left: 0; right: 0; height: 88px; background: #ecf0f1; border-radius: 26px; cursor: grab; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 12px 0 20px; user-select: none; touch-action: none; box-shadow: 0 1px 5px rgba(0,0,0,0.14); transition: box-shadow 0.14s; }
 #brush-window { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,0.07); box-shadow: inset 0 1px 4px rgba(0,0,0,0.14); display: flex; align-items: center; justify-content: center; overflow: hidden; flex-shrink: 0; }
-#brush-preview { border-radius: 50%; background: #333; width: 12px; height: 12px; transition: width 0.12s ease-out, height 0.12s ease-out, background 0.12s; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+#brush-preview { border-radius: 50%; background: #333; width: 12px; height: 12px; transition: width 0.12s ease-out, height 0.12s ease-out, background 0.12s; flex-shrink: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.12); }
 #brush-grip { width: 12px; height: 12px; flex-shrink: 0; position: relative; pointer-events: none; }
 #brush-grip::before { content: ''; position: absolute; left: 0; top: 0; width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.22); box-shadow: 8px 0 0 rgba(0,0,0,0.22), 0 8px 0 rgba(0,0,0,0.22), 8px 8px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(255,255,255,0.45), 9px 1px 0 rgba(255,255,255,0.45), 1px 9px 0 rgba(255,255,255,0.45), 9px 9px 0 rgba(255,255,255,0.45); }
 #color-handle::after, #mod-handle::after { content: ''; position: absolute; left: calc(50% - 6px); top: calc(50% - 10px); width: 4px; height: 4px; border-radius: 50%; background: rgba(0,0,0,0.22); box-shadow: 8px 0 0 rgba(0,0,0,0.22), 0 8px 0 rgba(0,0,0,0.22), 8px 8px 0 rgba(0,0,0,0.22), 0 16px 0 rgba(0,0,0,0.22), 8px 16px 0 rgba(0,0,0,0.22), 1px 1px 0 rgba(255,255,255,0.45), 9px 1px 0 rgba(255,255,255,0.45), 1px 9px 0 rgba(255,255,255,0.45), 9px 9px 0 rgba(255,255,255,0.45), 1px 17px 0 rgba(255,255,255,0.45), 9px 17px 0 rgba(255,255,255,0.45); pointer-events: none; }
 #slider-handle.jumping, #color-handle.jumping, #mod-handle.jumping { transition: top 0.18s cubic-bezier(0.34,1.4,0.64,1); }
-#slider-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 3px 10px rgba(0,0,0,0.45); }
-#slider-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 2px 10px rgba(0,0,0,0.28); }
+#slider-handle:hover { box-shadow: 0 0 0 2px rgba(255,255,255,0.35), 0 2px 6px rgba(0,0,0,0.22); }
+#slider-handle.grabbing { cursor: grabbing; box-shadow: 0 0 0 3px var(--accent), 0 1px 5px rgba(0,0,0,0.14); }
 @keyframes sliderPressDown { 0%{transform:scaleX(1) scaleY(1)} 40%{transform:scaleX(1.15) scaleY(0.88)} 70%{transform:scaleX(0.94) scaleY(1.06)} 100%{transform:scaleX(1) scaleY(1)} }
 @keyframes sliderRelease { 0%{transform:scaleY(1)} 20%{transform:scaleY(1.06)} 55%{transform:scaleY(0.97)} 100%{transform:scaleY(1)} }
 #slider-handle.anim-press { animation: sliderPressDown 0.28s cubic-bezier(0.36,0.07,0.19,0.97) forwards; }
@@ -97,11 +95,11 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 #action-row { display: none; }
 #size-warning { display: none; position: fixed; inset: 0; background: rgba(220,230,238,0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); z-index: 10000; align-items: center; justify-content: center; padding: 20px; }
 #size-warning.show { display: flex; }
-.size-warning-box { background: rgba(255,255,255,0.82); border: 1.5px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 36px 44px; max-width: 92%; text-align: center; color: #1a1a2e; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+.size-warning-box { background: rgba(255,255,255,0.82); border: 1.5px solid rgba(255,255,255,0.9); border-radius: 24px; padding: 36px 44px; max-width: 92%; text-align: center; color: #1a1a2e; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
 .size-warning-icon { font-size: 64px; color: #6cb8b6; }
 .size-warning-title { font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 24px; margin-top: 10px; }
 .size-warning-sub { font-family: 'Fredoka', sans-serif; font-size: 14px; opacity: 0.65; margin-top: 10px; line-height: 1.5; }
-#rect-submenu, #ellipse-submenu { position: fixed; background: var(--rail-bg); border-radius: 20px; padding: 8px 6px; display: flex; flex-direction: column; gap: 8px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 300; box-shadow: 0 6px 20px rgba(0,0,0,0.22); opacity: 0; transform: translateX(-8px) scale(0.95); transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34,1.56,0.64,1); pointer-events: none; }
+#rect-submenu, #ellipse-submenu { position: fixed; background: var(--rail-bg); border-radius: 20px; padding: 8px 6px; display: flex; flex-direction: column; gap: 8px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 300; box-shadow: 0 3px 10px rgba(0,0,0,0.12); opacity: 0; transform: translateX(-8px) scale(0.95); transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.34,1.56,0.64,1); pointer-events: none; }
 #rect-submenu.visible, #ellipse-submenu.visible { opacity: 1; transform: translateX(0) scale(1); pointer-events: all; }
 .rect-sub-btn, .ellipse-sub-btn { width: 46px; height: 46px; border-radius: 50%; background: transparent; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; transition: background 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); flex-shrink: 0; }
 .rect-sub-btn:hover, .ellipse-sub-btn:hover { background: rgba(255,255,255,0.18); }
@@ -113,10 +111,10 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 
 /* ── App menu (canvas top-right) ─────────────────────────────────────────── */
 /* Single morphing container — expands from pill to card on open */
-#app-menu { position: absolute; top: 11px; right: 14px; z-index: 401; background: #ffffff; border: 1px solid #DADADA; border-radius: 23.5px; box-shadow: 0 2px 8px rgba(0,0,0,0.10); overflow: hidden; user-select: none; width: 130px; height: 47px; transition: width 0.32s cubic-bezier(0.22,1,0.36,1), height 0.32s cubic-bezier(0.22,1,0.36,1), border-radius 0.28s ease, box-shadow 0.22s ease, transform 0.12s ease, opacity 0.22s ease; }
-#app-menu:not(.open):hover { box-shadow: 0 4px 12px rgba(0,0,0,0.14); }
+#app-menu { position: absolute; top: 11px; right: 14px; z-index: 401; background: #ffffff; border: 1px solid #DADADA; border-radius: 23.5px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; user-select: none; width: 130px; height: 47px; transition: width 0.32s cubic-bezier(0.22,1,0.36,1), height 0.32s cubic-bezier(0.22,1,0.36,1), border-radius 0.28s ease, box-shadow 0.22s ease, transform 0.12s ease, opacity 0.22s ease; }
+#app-menu:not(.open):hover { box-shadow: 0 2px 8px rgba(0,0,0,0.10); }
 #app-menu:not(.open):active { transform: scale(0.96); }
-#app-menu.open { border-radius: 24.5px; box-shadow: 0 16px 40px rgba(0,0,0,0.18); cursor: default; transition: width 0.35s cubic-bezier(0.34,1.18,0.64,1), height 0.35s cubic-bezier(0.34,1.18,0.64,1), border-radius 0.3s cubic-bezier(0.34,1.18,0.64,1), box-shadow 0.22s ease, transform 0.12s ease, opacity 0.22s ease; }
+#app-menu.open { border-radius: 24.5px; box-shadow: 0 6px 20px rgba(0,0,0,0.10); cursor: default; transition: width 0.35s cubic-bezier(0.34,1.18,0.64,1), height 0.35s cubic-bezier(0.34,1.18,0.64,1), border-radius 0.3s cubic-bezier(0.34,1.18,0.64,1), box-shadow 0.22s ease, transform 0.12s ease, opacity 0.22s ease; }
 
 /* Pill overlay — visible when closed, fades out when open */
 .app-menu-pill { position: absolute; inset: 0; display: flex; align-items: center; gap: 14px; padding: 0 22px; background: none; border: none; cursor: pointer; z-index: 2; transition: opacity 0.15s ease 0.08s; }
@@ -157,7 +155,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
    from the splash as well as the app menu. */
 .modal-overlay { position: fixed; inset: 0; z-index: 9500; background: rgba(8,8,24,0.42); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
 .modal-overlay.visible { opacity: 1; pointer-events: auto; }
-.modal-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0.88); z-index: 9501; width: min(448px, calc(100vw - 48px)); max-height: calc(100vh - 80px); overflow-y: auto; background: #ffffff; border: 1px solid #dadada; border-radius: 19px; padding: 20px; box-shadow: 0 4px 40.5px rgba(0,0,0,0.10); opacity: 0; pointer-events: none; transition: opacity 0.32s ease, transform 0.40s cubic-bezier(0.34,1.56,0.64,1); font-family: 'Fredoka', sans-serif; color: #1a1a2e; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.modal-panel { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%) scale(0.88); z-index: 9501; width: min(448px, calc(100vw - 48px)); max-height: calc(100vh - 80px); overflow-y: auto; background: #ffffff; border: 1px solid #dadada; border-radius: 19px; padding: 20px; box-shadow: 0 2px 16px rgba(0,0,0,0.08); opacity: 0; pointer-events: none; transition: opacity 0.32s ease, transform 0.40s cubic-bezier(0.34,1.56,0.64,1); font-family: 'Fredoka', sans-serif; color: #1a1a2e; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 .modal-panel.visible { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(1); }
 .modal-close { position: absolute; top: 20px; right: 20px; width: 34px; height: 34px; border-radius: 50%; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center; color: rgba(26,26,46,0.55); transition: background 0.15s, color 0.15s, transform 0.18s cubic-bezier(0.34,1.56,0.64,1); }
 .modal-close:hover { background: rgba(0,0,0,0.06); color: rgba(26,26,46,0.90); }
@@ -224,7 +222,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
   <div id="tool-pill">
     <button id="active-tool-pin" aria-label="Active tool"><img src="" alt=""></button>
     <div id="tool-scroll-section">
-      <button id="tool-overflow-up" class="tool-overflow-btn" aria-label="Scroll up"><span class="mir">expand_less</span></button>
+      <button id="tool-overflow-up" class="tool-overflow-btn" aria-label="Scroll up"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none"><polyline points="4,12 9,6 14,12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div id="tool-scroll-viewport">
         <div id="tool-list">
         <button class="tool-btn active" data-tool="pencil"><img src="icons/tools/pen.svg" alt=""></button>
@@ -243,7 +241,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
         <button class="tool-btn" data-tool="threed"><img src="icons/tools/cube.svg" alt=""></button>
         </div>
       </div>
-      <button id="tool-overflow-down" class="tool-overflow-btn" aria-label="Scroll down"><span class="mir">expand_more</span></button>
+      <button id="tool-overflow-down" class="tool-overflow-btn" aria-label="Scroll down"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none"><polyline points="4,6 9,12 14,6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </div>
   </div>
   <div id="slider-track">
@@ -337,7 +335,7 @@ canvas { position: absolute; top: 0; left: 0; touch-action: none; }
 
 <div id="size-warning">
   <div class="size-warning-box">
-    <span class="mir size-warning-icon">aspect_ratio</span>
+    <svg class="size-warning-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="64" height="64"><path d="M19 12h-2v3h-3v2h5v-5zM7 9h3V7H5v5h2V9zm14-6H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14z"/></svg>
     <div class="size-warning-title">Make the window bigger!</div>
     <div class="size-warning-sub">This app requires a larger window or screen.</div>
   </div>
