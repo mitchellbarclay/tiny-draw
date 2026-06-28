@@ -10,7 +10,7 @@ var RECT_STATE_DURATION = 800;
 // settle.) Shared by both the rect and ellipse tools — pass the per-tool draw
 // function and the state keys it uses for its rAF handle / bouncing flag.
 var SETTLE_MS = 420;     // total settle duration
-var SETTLE_AMP = 0.10;   // peak scale deviation (~6% in, ~2% out after decay)
+var SETTLE_AMP = 0.03;   // peak scale deviation — kept very subtle (~1.8% in, ~0.7% out)
 var SETTLE_DECAY = 2;    // how fast the oscillation damps
 var SETTLE_FREQ = Math.PI * 2; // one full cycle: in → out → rest (sin(2π)=0 lands clean)
 
