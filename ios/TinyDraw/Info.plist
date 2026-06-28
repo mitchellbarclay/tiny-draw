@@ -20,6 +20,11 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Opt into high-refresh (ProMotion / 120Hz). Lifts WebKit's default 60fps
+	     requestAnimationFrame cap inside the WKWebView. Only observable on a real
+	     ProMotion device — Simulator and non-ProMotion screens won't show it. -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
