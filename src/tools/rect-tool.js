@@ -2,6 +2,42 @@ import state from '../state.js';
 
 var RECT_STATE_DURATION = 800;
 
+// Squash-and-settle played when a rect/ellipse is released. The shape dips
+// slightly inward (anticipation), springs back out a touch past its final size,
+// then lands exactly on it. Scaling is about the shape's centre so the motion is
+// symmetric. (The previous version scaled from one corner and only dipped ~3%
+// inward with no overshoot, so it read as a lopsided flinch rather than a
+// settle.) Shared by both the rect and ellipse tools — pass the per-tool draw
+// function and the state keys it uses for its rAF handle / bouncing flag.
+var SETTLE_MS = 420;     // total settle duration
+var SETTLE_AMP = 0.10;   // peak scale deviation (~6% in, ~2% out after decay)
+var SETTLE_DECAY = 2;    // how fast the oscillation damps
+var SETTLE_FREQ = Math.PI * 2; // one full cycle: in → out → rest (sin(2π)=0 lands clean)
+
+export function settleShape(drawFn, x1, y1, x2, y2, st, col, pat, frameKey, flagKey) {
+  state[flagKey] = true;
+  var cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+  var hw = (x2 - x1) / 2, hh = (y2 - y1) / 2;
+  var mcx = state.mirrorMode ? state.canvasW - cx : null;
+  var startTime = performance.now();
+  function frame() {
+    var t = Math.min(1, (performance.now() - startTime) / SETTLE_MS);
+    var s = 1 - SETTLE_AMP * Math.exp(-SETTLE_DECAY * t) * Math.sin(t * SETTLE_FREQ);
+    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+    drawFn(state.ovCtx, cx - hw * s, cy - hh * s, cx + hw * s, cy + hh * s, st, col, pat);
+    if (mcx !== null) drawFn(state.ovCtx, mcx - hw * s, cy - hh * s, mcx + hw * s, cy + hh * s, st, col, pat);
+    if (t < 1) {
+      state[frameKey] = requestAnimationFrame(frame);
+    } else {
+      drawFn(state.ctx, cx - hw, cy - hh, cx + hw, cy + hh, st, col, pat);
+      if (mcx !== null) drawFn(state.ctx, mcx - hw, cy - hh, mcx + hw, cy + hh, st, col, pat);
+      state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
+      state[frameKey] = null; state[flagKey] = false;
+    }
+  }
+  state[frameKey] = requestAnimationFrame(frame);
+}
+
 export function makeRectPattern(col, patternScale) {
   var sc = Math.max(0.4, Math.min(5, patternScale || 1));
   var types = ['stripes','dots','crosshatch','checker','wavylines','hexagons','chevron','brick','fishscales','diamonds'];
@@ -201,28 +237,9 @@ export function finalizeRectStroke() {
   var st = rectStateFromSubTool();
   var x1 = rs.x1, y1 = rs.y1, x2 = rs.x2, y2 = rs.y2;
   var col = rs.col, pat = rs.patternCanvas;
-  var mx1 = state.mirrorMode ? state.canvasW-x1 : null;
-  var mx2 = state.mirrorMode ? state.canvasW-x2 : null;
   if (state.rectAnimFrame) { cancelAnimationFrame(state.rectAnimFrame); state.rectAnimFrame = null; }
-  state.rectStroke = null; state.rectBouncing = true;
-  var BOUNCE_MS = 380, startTime = performance.now();
-  var dx = x2-x1, dy = y2-y1;
-  function bounceFrame() {
-    var t = Math.min(1, (performance.now()-startTime)/BOUNCE_MS);
-    var scale = 1-0.10*Math.sin(t*Math.PI)*Math.exp(-t*2.5);
-    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-    drawRectOnCtx(state.ovCtx, x1, y1, x1+dx*scale, y1+dy*scale, st, col, pat);
-    if (mx1 !== null) drawRectOnCtx(state.ovCtx, mx1, y1, mx1-dx*scale, y1+dy*scale, st, col, pat);
-    if (t < 1) {
-      state.rectAnimFrame = requestAnimationFrame(bounceFrame);
-    } else {
-      drawRectOnCtx(state.ctx, x1, y1, x2, y2, st, col, pat);
-      if (mx1 !== null) drawRectOnCtx(state.ctx, mx1, y1, mx2, y2, st, col, pat);
-      state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-      state.rectAnimFrame = null; state.rectBouncing = false;
-    }
-  }
-  state.rectAnimFrame = requestAnimationFrame(bounceFrame);
+  state.rectStroke = null;
+  settleShape(drawRectOnCtx, x1, y1, x2, y2, st, col, pat, 'rectAnimFrame', 'rectBouncing');
 }
 
 export function cancelRectStroke() {

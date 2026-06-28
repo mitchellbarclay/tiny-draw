@@ -1,5 +1,5 @@
 import state from '../state.js';
-import { makeRectPattern, applyPattern } from './rect-tool.js';
+import { makeRectPattern, applyPattern, settleShape } from './rect-tool.js';
 
 var ELLIPSE_STATE_DURATION = 800;
 
@@ -64,28 +64,9 @@ export function finalizeEllipseStroke() {
   var st = ellipseStateFromSubTool();
   var x1 = es.x1, y1 = es.y1, x2 = es.x2, y2 = es.y2;
   var col = es.col, pat = es.patternCanvas;
-  var mx1 = state.mirrorMode ? state.canvasW-x1 : null;
-  var mx2 = state.mirrorMode ? state.canvasW-x2 : null;
   if (state.ellipseAnimFrame) { cancelAnimationFrame(state.ellipseAnimFrame); state.ellipseAnimFrame = null; }
-  state.ellipseStroke = null; state.ellipseBouncing = true;
-  var BOUNCE_MS = 380, startTime = performance.now();
-  var dx = x2-x1, dy = y2-y1;
-  function bounceFrame() {
-    var t = Math.min(1, (performance.now()-startTime)/BOUNCE_MS);
-    var scale = 1-0.10*Math.sin(t*Math.PI)*Math.exp(-t*2.5);
-    state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-    drawEllipseOnCtx(state.ovCtx, x1, y1, x1+dx*scale, y1+dy*scale, st, col, pat);
-    if (mx1 !== null) drawEllipseOnCtx(state.ovCtx, mx1, y1, mx1-dx*scale, y1+dy*scale, st, col, pat);
-    if (t < 1) {
-      state.ellipseAnimFrame = requestAnimationFrame(bounceFrame);
-    } else {
-      drawEllipseOnCtx(state.ctx, x1, y1, x2, y2, st, col, pat);
-      if (mx1 !== null) drawEllipseOnCtx(state.ctx, mx1, y1, mx2, y2, st, col, pat);
-      state.ovCtx.clearRect(0, 0, state.canvasW, state.canvasH);
-      state.ellipseAnimFrame = null; state.ellipseBouncing = false;
-    }
-  }
-  state.ellipseAnimFrame = requestAnimationFrame(bounceFrame);
+  state.ellipseStroke = null;
+  settleShape(drawEllipseOnCtx, x1, y1, x2, y2, st, col, pat, 'ellipseAnimFrame', 'ellipseBouncing');
 }
 
 export function cancelEllipseStroke() {
